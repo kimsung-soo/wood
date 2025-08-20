@@ -104,7 +104,7 @@ const onGridReady = (params) => {
 // rowData1 배열에 새로운 빈행 추가
 const addRow = () => {
   const newRow = {};
-  rowData1.value.unshift(newRow);
+  rowData1.value.push(newRow);
 };
 
 //모달 value들

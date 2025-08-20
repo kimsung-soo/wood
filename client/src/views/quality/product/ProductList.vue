@@ -138,10 +138,10 @@ const getPrdList = async () => {
       // DB 필드명을 Vue 컴포넌트에서 사용하는 필드명으로 매핑
       rowData.value = result.data.map((item) => ({
         certId: item.PRD_CERT_ID || item.certId,
-        prdCode: item.PRD_CODE || item.prdCode,
+        prdCode: item.PRD_ID || item.prdCode,
         prdName: item.PRD_NAME || item.prdName,
         chkedDate: item.Q_CHECKED_DATE || item.chkedDate,
-        prdType: item.PRD_TYPE || item.prdType
+        prdType: item.PRD_STATUS || item.prdType
       }));
     }
   } catch (err) {
