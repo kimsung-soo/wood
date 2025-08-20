@@ -364,6 +364,27 @@ const wrSelect = `SELECT WR_AREANO,
                  FROM WR_DETAIL
                  WHERE WR_NO = ?`;
 
+const wrShip = `SELECT SHIP_NO, 
+                         WR_NO,
+                          D_DAY, 
+                          PRD_LOT, 
+                          PRD_NAME, 
+                          QTY,
+                          DELIVERY,
+                          CAR_NO, 
+                          SHIP_WRITER,
+                          SHIP_DATE,
+                          SHIP_STATUS
+                    FROM SHIPMENT
+                    ORDER BY ROWNUM DESC`;
+
+const wrShipUpdate = `UPDATE SHIPMENT 
+                      SET SHIP_DATE = now()
+                      ,SHIP_STATUS = '출하완료',
+                      DELIVERY = ?,
+                      CAR_NO = ?
+                      WHERE SHIP_NO = ? `;
+
 module.exports = {
   masterEmpSelect,
   masterEmpInsert,
@@ -416,4 +437,6 @@ module.exports = {
   masterPrcModal,
   masterPrcInsert,
   masterPrcUpdate,
+  wrShip,
+  wrShipUpdate,
 };

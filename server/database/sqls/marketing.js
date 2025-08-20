@@ -16,6 +16,7 @@ const selectAccountList = `
     created_at   as createdAt,
     updated_at   as updatedAt
   from CUSTOMERS
+  where cus_use = 1
 `;
 
 const selectItemList = `
@@ -37,67 +38,71 @@ const insertOrder = `
 `;
 
 // 태완 작업.
-const inboundList = `SELECT r.RECEIVED_NO,c.PRD_CERT_ID, c.PRD_CODE,c.PRD_NAME, r.RECEIVED_DATE ,c.TOTAL_QTY, r.PRD_LOT
-  FROM PRODUCT_RECEIPT AS r RIGHT JOIN PRODUCT_CERTIFICATE AS c
-                ON r.PRD_CERT_ID = c.PRD_CERT_ID
-                `;
+const inboundList = `SELECT PRD_CERT_ID, PRD_CODE, PRD_NAME, TOTAL_QTY, PRD_TYPE, Q_CHECKED_DATE,CREATED_BY FROM PRODUCT_CERTIFICATE ORDER BY CERT_NO DESC`;
 
 // LOT넘버 생성
 const getNextLotNo = `SELECT generate_lot_number()`;
-const inboundInsert = `INSERT INTO PRODUCT_RECEIPT( RECEIVED_QTY, RECEIVED_DATE, PRD_CERT_ID, PRD_LOT, PRD_CODE)
-VALUES(?,?,?,?,?);`;
+const inboundInsert = `INSERT INTO PRODUCT_RECEIPT( RECEIVED_QTY, RECEIVED_DATE, PRD_CERT_ID,PRD_CODE,PRD_TYPE, PRD_NAME, PRD_LOT )
+VALUES(?,now(),?,?,?,?,?);`;
 
 // 날짜 조건 검색
-const inboundSearch = `SELECT r.RECEIVED_NO,
-                              c.PRD_CERT_ID,
-                              c.PRD_CODE,
-                              c.PRD_NAME,
-                                c.Q_CHECKED_DATE,
-                                c.TOTAL_QTY,
-                                r.PRD_LOT
-                        FROM PRODUCT_RECEIPT AS r RIGHT JOIN PRODUCT_CERTIFICATE AS c
-                        ON r.PRD_CERT_ID = c.PRD_CERT_ID
-                        WHERE r.RECEIVED_DATE >= ? AND r.RECEIVED_DATE <= ?`;
-
-// 출하 이력 조회 (미완성 주문날짜, 랏번호 안들어감)
-const outboundList = `SELECT SHIP_NO,
- REQ_ID, 
+const inboundSearch = `SELECT PRD_CERT_ID, 
+ PRD_CODE,
  PRD_NAME,
- CUS_NAME, 
- SHIP_QTY, 
- DELIVERY,
- SHIP_DATE, 
- CAR_NO, 
- SHIP_MANAGER,
- SHIP_STATUS
- FROM REQUSET_SHIPMENT;`;
+ TOTAL_QTY,
+ PRD_TYPE, 
+ Q_CHECKED_DATE,
+ CREATED_BY 
+ FROM PRODUCT_CERTIFICATE 
+ WHERE Q_CHECKED_DATE >= ? AND Q_CHECKED_DATE <= ?
+ ORDER BY CERT_NO DESC`;
 
-// 출하지시서 등록 모달2(입고 조회)
+// LOT 조회
+const lotSelect = `SELECT 
+    T1.RECEIVED_NO,
+    T1.RECEIVED_QTY,
+    T1.RECEIVED_DATE,
+    T1.PRD_CERT_ID,
+    T1.PRD_CODE, 
+    T1.PRD_NAME,
+    T1.PRD_TYPE, 
+    T1.PRD_LOT,
+    -- 총 출하 수량 계산. 출하 이력이 없으면 0으로 처리
+    COALESCE(SUM(T2.QTY), 0) AS TOTAL_SHIPPED_QTY,
+    -- 남은 수량 계산 = 입고 수량 - 총 출하 수량
+    (T1.RECEIVED_QTY - COALESCE(SUM(T2.QTY), 0)) AS REMAINING_QTY
+FROM PRODUCT_RECEIPT T1
+LEFT JOIN SHIPMENT T2
+    ON T1.PRD_LOT = T2.PRD_LOT
+GROUP BY
+    T1.RECEIVED_NO,
+    T1.RECEIVED_QTY,
+    T1.RECEIVED_DATE,
+    T1.PRD_CERT_ID,
+    T1.PRD_CODE, 
+    T1.PRD_NAME,
+    T1.PRD_TYPE, 
+    T1.PRD_LOT
+ORDER BY T1.RECEIVED_NO DESC`;
+// 출하지시서 창고명
+const wrNameSelect = `SELECT WR_NAME FROM WAREHOUSE`;
 
-const shipPrdSelect = `SELECT r.RECEIVED_NO,
-                              c.PRD_CODE,
-                              c.PRD_NAME,
-                              c.Q_CHECKED_DATE,
-                              c.TOTAL_QTY, 
-                              r.PRD_LOT
-FROM PRODUCT_RECEIPT AS r RIGHT JOIN PRODUCT_CERTIFICATE AS c
-						   ON r.PRD_CERT_ID = c.PRD_CERT_ID`;
+// 출하이력 조회
+const shipSelect = `SELECT SHIP_NO, 
+                          REQ_ID, 
+                          CUS_ID, 
+                          D_DAY, 
+                          PRD_LOT, 
+                          PRD_NAME, 
+                          QTY,
+                          DELIVERY,
+                          CAR_NO, 
+                          SHIP_DATE,
+                          SHIP_STATUS,
+                          NOTE
+                    FROM SHIPMENT
+                    ORDER BY ROWNUM DESC`;
 
-
-
-
-const selectOrderList = `
-  select 
-    REQ_DATE,       
-    REQ_ID,     
-    PRD_CODE,    
-    PRD_NAME,  
-    REQ_QTY,    
-    CUS_NAME,     
-    REQ_DDAY,   
-    REQ_NOTE   
-  from CUSTOMERS
-`;
 module.exports = {
   insertAccount,
   selectAccountList,
@@ -107,6 +112,7 @@ module.exports = {
   getNextLotNo,
   inboundInsert,
   inboundSearch,
-  outboundList,
-  shipPrdSelect,
+  lotSelect,
+  wrNameSelect,
+  shipSelect,
 };

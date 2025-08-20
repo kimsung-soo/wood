@@ -447,4 +447,22 @@ router.post("/wrSelect", async (req, res) => {
     console.log(e);
   }
 });
+
+//출하 - 조회
+router.get("/wrShip", async (req, res) => {
+  let list = await masterService.wrShip();
+  res.send(list);
+});
+
+// 출하 - wrShipUpdate
+router.post("/wrShipUpdate", async (req, res) => {
+  const data = req.body;
+  try {
+    let list = await masterService.wrShipUpdate(data);
+    res.send(list);
+  } catch (e) {
+    console.log(e);
+  }
+});
+
 module.exports = router;
