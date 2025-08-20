@@ -1,0 +1,31 @@
+@import './variables';
+@import 'vuetify/styles/main.sass';
+@import './override';
+@import './layout/container';
+@import './layout/sidebar';
+@import './layout/topbar';
+
+@import './components/VButtons';
+@import './components/VCard';
+@import './components/VField';
+@import './components/VInput';
+@import './components/VNavigationDrawer';
+@import './components/VShadow';
+@import './components/VTextField';
+@import './components/VTabs';
+
+@import './pages/dashboards';
+
+@import 'vue3-perfect-scrollbar/style.css';
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+
+body {
+  font-family:
+    'Pretendard Variable',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
+}
