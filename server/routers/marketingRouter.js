@@ -34,34 +34,4 @@ router.post("/inboundInsert", async (req, res) => {
     console.log(e);
   }
 });
-
-// BOM_DETAIL 조회
-router.post("/inboundSearch", async (req, res) => {
-  const data = req.body;
-  try {
-    let list = await marketingService.inboundSearch(data);
-    res.send(list);
-  } catch (e) {
-    console.log(e);
-  }
-});
-
-// LOT- 조회
-router.get("/lotSelect", async (req, res) => {
-  let list = await marketingService.lotSelect();
-  res.send(list);
-});
-
-// 출하지시서 - 등록 (창고조회)
-router.get("/wrNameSelect", async (req, res) => {
-  let list = await marketingService.wrNameSelect();
-  res.send(list);
-});
-
-// 출하 이력 조회
-router.get("/shipSelect", async (req, res) => {
-  let list = await marketingService.shipSelect();
-  res.send(list);
-});
-
 module.exports = router;

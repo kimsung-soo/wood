@@ -24,9 +24,7 @@
           style="height: 550px; width: 100%"
           @cell-value-changed="onCellValueChanged"
           @grid-ready="onGridReadyMat"
-          :rowSelection="'single'"
-          :pagination="true"
-          :pagination-page-size="20"
+          :rowSelection="'multiple'"
         >
           <!--  :defaultColDef="{ width: 150 }" 로 전체 width지정도가능-->
         </ag-grid-vue>
@@ -64,12 +62,13 @@ const rowData1 = ref([]);
 
 const colDefs1 = ref([
   { headerCheckboxSelection: true, checkboxSelection: true, width: 50 },
+  { field: '입고번호', flex: 1 },
   { field: '검사번호', flex: 1 },
-  { field: '검사일자', flex: 1 },
   { field: '제품코드', flex: 1 },
   { field: '제품명', flex: 1 },
-  { field: '제품유형', flex: 1 },
-  { field: '수량', flex: 0.7 }
+  { field: '입고일자', flex: 1 },
+  { field: '입고수량', flex: 0.7 },
+  { field: 'LOT번호', flex: 1.3 }
 ]);
 
 const page = ref({ title: '입고 및 LOT번호등록' });
@@ -91,19 +90,20 @@ const breadcrumbs = shallowRef([
   }
 ]);
 onMounted(() => {
-  qualityList();
+  inboundList();
 });
-const qualityList = async () => {
+const inboundList = async () => {
   const res = await axios.get('http://localhost:3000/inboundList');
   console.log(res);
   rowData1.value = res.data.map((prd) => ({
+    입고번호: prd.RECEIVED_NO,
     검사번호: prd.PRD_CERT_ID,
     제품코드: prd.PRD_CODE,
     제품명: prd.PRD_NAME,
-    제품유형: prd.PRD_TYPE,
-    검사일자:
-      prd.Q_CHECKED_DATE instanceof Date ? prd.Q_CHECKED_DATE.toISOString().substring(0, 10) : prd.Q_CHECKED_DATE?.substring(0, 10) || '',
-    수량: prd.TOTAL_QTY
+    입고일자:
+      prd.RECEIVED_DATE instanceof Date ? prd.RECEIVED_DATE.toISOString().substring(0, 10) : prd.RECEIVED_DATE?.substring(0, 10) || '',
+    입고수량: prd.TOTAL_QTY,
+    LOT번호: prd.PRD_LOT
   }));
 };
 
@@ -112,20 +112,15 @@ const submitForm = async () => {
   const selectedRows = gridApiMat.value.getSelectedRows();
   if (selectedRows.length === 0) {
     alert('입고할 제품을 선택하세요');
-    return;
   }
-  console.log(selectedRows);
-  const payload = selectedRows.map((r) => ({
-    RECEIVED_QTY: r.수량,
-    PRD_CERT_ID: r.검사번호,
-    PRD_CODE: r.제품코드,
-    PRD_NAME: r.제품명,
-    PRD_TYPE: r.제품유형
-  }));
+  const RECEIVED_QTY = selectedRows.map((r) => r.입고수량);
+  const RECEIVED_DATE = selectedRows.map((r) => r.입고일자);
+  const PRD_CERT_ID = selectedRows.map((r) => r.검사번호);
+  const PRD_CODE = selectedRows.map((r) => r.제품코드);
   // 랏번호는 노드에서 진행
-  const res = await axios.post('http://localhost:3000/inboundInsert', payload);
+  const condition = { RECEIVED_QTY, RECEIVED_DATE, PRD_CERT_ID, PRD_CODE };
+  const res = await axios.post('http://localhost:3000/inboundInsert', condition);
   console.log(res);
-  alert('등록완료');
 };
 // 날짜 검색
 const searchData = async () => {
@@ -133,18 +128,19 @@ const searchData = async () => {
     startDate: form.value.startDate,
     endDate: form.value.endDate
   };
-  if (!form.value.startDate) {
+  if (!form.value.startDate || !form.value.endDate) {
     alert('날짜를 올바르게 선택하세요.');
     return;
   }
   const res = await axios.post('http://localhost:3000/inboundSearch', condition);
   rowData1.value = res.data.map((prd) => ({
+    입고번호: prd.RECEIVED_NO,
     검사번호: prd.PRD_CERT_ID,
     제품코드: prd.PRD_CODE,
-    제품유형: prd.PRD_TYPE,
     제품명: prd.PRD_NAME,
-    검사일자: prd.Q_CHECKED_DATE.substring(0, 10),
-    수량: prd.TOTAL_QTY
+    입고일자: prd.Q_CHECKED_DATE.substring(0, 10),
+    입고수량: prd.TOTAL_QTY,
+    LOT번호: prd.PRD_LOT
   }));
 };
 
@@ -159,7 +155,6 @@ const resetForm = () => {
     startDate: '',
     endDate: ''
   };
-  qualityList();
 };
 </script>
 

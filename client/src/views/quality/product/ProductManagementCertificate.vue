@@ -165,9 +165,21 @@ const detailRows = ref([
     writer: '(세션id)',
     finished_at: '(자동입력)',
     certDate: '(오늘날짜)'
+    /*
+
+    */
   }
 ]);
-
+/*
+    query: {
+      product_code: String(row.product_code || ''), // 제품코드
+      product_name: String(row.product_name || ''), // 제품명
+      product_type: String(row.product_type || ''), // 제품유형
+      qty: String(row.qty || 0), // 총수량
+      writer: String(row.writer || ''), // 작업자
+      finished_at: String(row.finished_at || '') // 생산완료일
+    }
+      */
 const detailCols = ref([
   { headerName: '제품검사번호', field: 'certid', width: 170, editable: false },
   { headerName: '제품코드', field: 'prdCode', width: 140, editable: false },
@@ -208,77 +220,48 @@ function resetForm() {
   r.doneDate = '';
 }
 
-// 불합격 사유 관련 데이터
-const defectReason = ref({
-  description: ''
-});
-
 async function saveForm() {
   const d = detailRows.value[0];
-  const isPass = finalStatus.value === '합격'; // ← boolean
+  const isPass = finalStatus.value === '합격';
 
-  // 디버깅 로그
-  console.log('[saveForm] finalStatus:', finalStatus.value, 'isPass:', isPass);
-
-  // 불합격이면 사유 필수
   if (!isPass && !defectReason.value.description.trim()) {
     alert('불합격 사유를 입력해주세요.');
     return;
   }
 
-  // 검사기준 → 결과배열(필요시)
+  // 1) 화면의 행들 → 결과배열로 변환
   const api = criteriaApi.value;
   const results = [];
-  if (api) {
-    api.forEachNode((node) => {
-      const r = node.data; // {label, allow, value}
-      results.push({
-        stdName: r.label,
-        allowedItem: r.label,
-        measuredValue: String(r.value ?? ''),
-        status: node.isSelected() ? '합격' : '불합격'
-      });
+  api.forEachNode((node) => {
+    const r = node.data; // {label, allow, value}
+    results.push({
+      stdName: r.label, // QUALITY_STANDARD.STD_NAME에 매칭할 값
+      allowedItem: r.label, // 결과 표시용(원하면 allow 사용)
+      measuredValue: String(r.value ?? ''),
+      status: node.isSelected() ? '합격' : '불합격'
     });
-  }
-  console.log('[saveForm] results:', results);
+  });
 
-  try {
-    if (isPass) {
-      // ✅ 합격: 헤더만 등록
-      const payload = {
-        TP_ID: d.tpId || Number(route.query.wo_no || 0),
-        PRD_CODE: d.prdCode,
-        PRD_NAME: d.prdName,
-        PRD_TYPE: d.prdType,
-        TOTAL_QTY: Number(d.totalQty) || 0,
-        Q_CHECKED_DATE: d.certDate, // 'YYYY-MM-DD'
-        CREATED_BY: d.writer
-      };
-      console.log('[saveForm] POST /passprd', payload);
-      await axios.post('http://localhost:3000/passprd', payload);
-      alert('합격 제품이 등록되었습니다!');
-    } else {
-      // ❌ 불합격: 헤더(불합격) + 상세 동시 트랜잭션 (백엔드가 처리)
-      const payload = {
-        TP_ID: d.tpId || Number(route.query.wo_no || 0),
-        PRD_CODE: d.prdCode,
-        PRD_NAME: d.prdName,
-        PRD_TYPE: d.prdType,
-        TOTAL_QTY: Number(d.totalQty) || 0,
-        Q_CHECKED_DATE: d.certDate,
-        CREATED_BY: d.writer,
-        RJT_CODE: 'MANUAL', // 필요 시 화면에서 선택값 사용
-        RJT_REASON: defectReason.value.description.trim()
-      };
-      console.log('[saveForm] POST /rejectprd', payload);
-      await axios.post('http://localhost:3000/rejectprd', payload);
-      alert('불합격 제품이 등록되었습니다!');
-    }
-  } catch (err) {
-    console.error('[saveForm] ERROR:', err);
-    alert('등록 중 오류가 발생했습니다.');
-  }
+  // 2) 헤더 + 결과 같이 전송
+  await axios.post('http://localhost:3000/passprd', {
+    TP_ID: d.tpId || Number(route.query.wo_no || 0),
+    PRD_CODE: d.prdCode,
+    PRD_NAME: d.prdName,
+    PRD_TYPE: d.prdType,
+    TOTAL_QTY: Number(d.totalQty) || 0,
+    Q_CHECKED_DATE: d.certDate,
+    CREATED_BY: d.writer
+    // PRD_STATUS 보내지 않음 (SQL에서 '합격')
+    // Q_STD_ID 모르면 안 보냄 (SQL에서 NULL)
+  });
+
+  alert('등록되었습니다!');
 }
+
+// 불합격 사유 관련 데이터
+const defectReason = ref({
+  description: ''
+});
 
 // 클릭한 행의 내용가져오기
 onMounted(() => {

@@ -33,22 +33,30 @@
 
 <script setup>
 // 기존 스크립트 내용은 동일합니다.
-import { ref, shallowRef, onMounted } from 'vue';
+import { ref, shallowRef } from 'vue';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import { themeQuartz } from 'ag-grid-community';
 import { AgGridVue } from 'ag-grid-vue3';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
-import axios from 'axios';
+
 const quartz = themeQuartz;
 const startDate = ref('');
 const endDate = ref('');
 
-onMounted(() => {
-  wrShip();
-});
-
 // 제품 리스트
-const rowData1 = ref([]);
+const rowData1 = ref([
+  {
+    출하번호: 1,
+    창고번호: '재단공정',
+    구역번호: '절단기',
+    섹션코드: '이동섭',
+    LOT번호: 123,
+    제품코드: 'mz-123',
+    출하담당자: '김태완',
+    출하일: '2025-08-29',
+    출하상태: '대기'
+  }
+]);
 
 const colDefs1 = ref([
   {
@@ -58,14 +66,14 @@ const colDefs1 = ref([
   },
   { field: '출하번호', editable: true, flex: 1 },
   { field: '창고번호', flex: 1 },
+  { field: '구역번호', flex: 1 },
+  { field: '섹션코드', flex: 1 },
   { field: 'LOT번호', flex: 1 },
-  { field: '제품명', flex: 1 },
-  { field: '출하수량', flex: 1 },
-  { field: '운송사', flex: 1, editable: true },
+  { field: '제품코드', flex: 1 },
+  { field: '업체명', flex: 1, editable: true },
   { field: '차량번호', flex: 1, editable: true },
   { field: '출하담당자', flex: 1 },
-  { field: '납기일자', flex: 1 },
-  { field: '출하일자', flex: 1 },
+  { field: '출하일', flex: 1 },
   {
     field: '출하상태',
     flex: 1,
@@ -101,42 +109,21 @@ const onCellValueChanged = (event) => {
   console.log(rowData1.value);
 };
 
-const wrShip = async () => {
-  const res = await axios.get('http://localhost:3000/wrShip');
-  rowData1.value = res.data.map((emp) => ({
-    출하번호: emp.SHIP_NO,
-    창고번호: emp.WR_NO,
-    주문번호: emp.REQ_ID,
-    납기일자: emp.D_DAY.substring(0, 10),
-    LOT번호: emp.PRD_LOT,
-    제품명: emp.PRD_NAME,
-    출하수량: emp.QTY,
-    운송사: emp.DELIVERY,
-    차량번호: emp.CAR_NO,
-    출하담당자: emp.SHIP_WRITER,
-    출하일자: emp.SHIP_DATE ? emp.SHIP_DATE.substring(0, 10) : null,
-    출하상태: emp.SHIP_STATUS
-  }));
-};
-
 // 그리드 api
 const gridApi = ref(null);
 const onGridReady = (params) => {
   gridApi.value = params.api; // API 저장
   console.log(gridApi.value);
 };
-const scrap = async () => {
+const scrap = () => {
   const selectedRows = gridApi.value.getSelectedRows();
-  const payload = selectedRows.map((r) => ({
-    DELIVERY: r.운송사,
-    CAR_NO: r.차량번호,
-    SHIP_NO: r.출하번호
-  }));
-  const res = await axios.post('http://localhost:3000/wrShipUpdate', payload);
-  console.log(res);
-  alert('저장완료');
+  selectedRows.forEach((row) => {
+    row.출하상태 = '출하완료';
+  });
   //화면 반영
-  wrShip();
+  if (gridApi.value) {
+    gridApi.value.refreshCells({ force: true });
+  }
 };
 </script>
 
