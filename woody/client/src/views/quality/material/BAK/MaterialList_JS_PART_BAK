@@ -1,0 +1,7 @@
+import { ref, shallowRef } from 'vue'; import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue'; import UiParentCard from
+'@/components/shared/UiParentCard.vue'; const page = ref({ title: '원자재검수조회' }); const breadcrumbs = shallowRef([ { title: '자재',
+disabled: true, href: '#' }, { title: '자재발주서 등록', disabled: false, href: '#' } ]); import { reactive, computed } from 'vue';
+interface Item { name: string; code: string; qty: number; spec: string; unit: string; price: number; note: string; amount?: number; }
+interface FormType { supplier: string; contact: string; issueNumber: string; orderDate: string; dueDate: string; manager: string; items:
+Item[]; } const form = reactive
+<FormType></FormType>
