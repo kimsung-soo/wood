@@ -8,7 +8,7 @@ function pageParam(q) {
   return { page, size, limit: size, offset: (page - 1) * size };
 }
 
-/* 제품 유형 조회 (PRODUCT.PRD_TYPE) */
+/* 제품 유형 조회 */
 async function resolveProductType(productCode, fallback = "완제품") {
   const row = (
     await mapper.query("product.selectTypeByCode", [productCode])
@@ -17,7 +17,7 @@ async function resolveProductType(productCode, fallback = "완제품") {
 }
 
 /* =========================
- * 제품 목록
+ * 제품/의뢰/계획
  * ========================= */
 async function getProducts({ kw = "", page = 1, size = 10 }) {
   const { limit, offset } = pageParam({ page, size });
@@ -33,9 +33,6 @@ async function getProducts({ kw = "", page = 1, size = 10 }) {
   return { rows, total: cnt[0]?.cnt || 0 };
 }
 
-/* =========================
- * 생산의뢰 목록
- * ========================= */
 async function getRequests({ kw = "", page = 1, size = 10 }) {
   const { limit, offset } = pageParam({ page, size });
   const like = `%${kw}%`;
@@ -56,9 +53,6 @@ async function getRequests({ kw = "", page = 1, size = 10 }) {
   return { rows, total: cnt[0]?.cnt || 0 };
 }
 
-/* =========================
- * 생산계획 저장 (일반쿼리)
- * ========================= */
 async function savePlan(body) {
   const f = body?.form || {};
   const selected = body?.selectedReqs || [];
@@ -67,33 +61,29 @@ async function savePlan(body) {
     throw new Error("필수 값 누락(계획번호/계획일자/제품코드)");
   }
 
-  // 제품 유형 자동 삽입
   const prdType =
     f.productType || (await resolveProductType(f.productCode, "완제품"));
 
-  // 1) 헤더 저장
   await mapper.query("production.insertPlan", [
     f.issueNumber,
-    f.orderDate, // plan_name
-    f.contact || null, // writer
-    f.orderNo || null, // order_no
-    f.dueDate || null, // created_date
-    f.dueDate2 || null, // due_date
-    Number(f.targetQty || 0), // total_qty
+    f.orderDate,
+    f.contact || null,
+    f.orderNo || null,
+    f.dueDate || null,
+    f.dueDate2 || null,
+    Number(f.targetQty || 0),
     f.productCode,
     f.productName || "",
-    prdType, // product_type
+    prdType,
     f.memo || null,
   ]);
 
-  // 2) plan id 조회
   const planRow = await mapper.query("production.selectPlanByNo", [
     f.issueNumber,
   ]);
   const planId = planRow?.[0]?.id;
   if (!planId) throw new Error("계획 저장 실패(planId 없음)");
 
-  // 3) 라인 저장
   for (const r of selected) {
     await mapper.query("production.insertPlanItem", [
       planId,
@@ -102,12 +92,9 @@ async function savePlan(body) {
     ]);
   }
 
-  return { planId, planNo: f.issueNumber };
+  return { planId, planNo: f.issueNumber, ok: true };
 }
 
-/* =========================
- * 생산계획 목록 (프로시저)
- * ========================= */
 async function getPlans({ kw = "", page = 1, size = 10 }) {
   const { limit, offset } = pageParam({ page, size });
   const r1 = await mapper.query("production.sp.selectPlans", [
@@ -116,7 +103,6 @@ async function getPlans({ kw = "", page = 1, size = 10 }) {
     offset,
   ]);
   const list = Array.isArray(r1) ? (Array.isArray(r1[0]) ? r1[0] : r1) : [];
-
   const r2 = await mapper.query("production.sp.countPlans", [kw]);
   const cntRow = Array.isArray(r2)
     ? Array.isArray(r2[0])
@@ -124,13 +110,9 @@ async function getPlans({ kw = "", page = 1, size = 10 }) {
       : r2[0]
     : null;
   const total = cntRow?.cnt ? Number(cntRow.cnt) : 0;
-
-  return { rows: list, total };
+  return { rows: list, total, ok: true };
 }
 
-/* =========================
- * 생산계획 수정 (프로시저)
- * ========================= */
 async function updatePlan(id, body = {}) {
   const f = body || {};
   const createdDate = (f.createdDate || "").substring(0, 10) || null;
@@ -150,66 +132,115 @@ async function updatePlan(id, body = {}) {
   const affected = Array.isArray(res?.[0])
     ? res[0][0]?.affected
     : res?.[0]?.affected || 0;
-  return { affected };
+  return { affected, ok: true };
 }
 
-/* =========================
- * 생산계획 삭제 (프로시저)
- * ========================= */
 async function deletePlans(ids = []) {
   const onlyNums = (Array.isArray(ids) ? ids : [])
     .map((v) => String(v).trim())
     .filter((v) => /^\d+$/.test(v));
-
-  if (!onlyNums.length) return { affected: 0 };
+  if (!onlyNums.length) return { affected: 0, ok: true };
 
   const csv = onlyNums.join(",");
   const res = await mapper.query("production.sp.deletePlans", [csv]);
   const affected = Array.isArray(res?.[0])
     ? res[0][0]?.affected
     : res?.[0]?.affected || 0;
-
-  return { affected };
+  return { affected, ok: true };
 }
 
 /* --------- 제품별 BOM 조회 --------- */
 async function getBomForProduct(productCode = "") {
   const code = String(productCode || "").trim();
-  if (!code) return { header: null, items: [] };
+  if (!code) return { header: null, items: [], ok: true };
 
   const header =
     (await mapper.query("production.selectBomHeaderByProduct", [code]))?.[0] ||
     null;
-  if (!header) return { header: null, items: [] };
+  if (!header) return { header: null, items: [], ok: true };
 
   const items = await mapper.query("production.selectBomItemsByHeader", [
     header.bomCode,
     header.bomVer,
   ]);
-  return { header, items };
+  return { header, items, ok: true };
 }
 
-/* =========================================================
- *                 작업지시(Work Orders)
- * ========================================================= */
+/* =========================
+ * 자재 현황 (BOM 기반, 가용재고 사용)
+ * ========================= */
+async function getMaterialStatus({ productCode = "", targetQty = 1 }) {
+  const code = String(productCode || "").trim();
+  const tgt = Math.max(Number(targetQty || 0), 0);
+  if (!code) return { rows: [], count: 0, ok: true };
 
-/* 작업지시 생성 */
+  const header =
+    (await mapper.query("production.selectBomHeaderByProduct", [code]))?.[0] ||
+    null;
+  if (!header) return { rows: [], count: 0, ok: true };
+
+  const bomItems = await mapper.query("production.selectBomItemsByHeader", [
+    header.bomCode,
+    header.bomVer,
+  ]);
+  if (!Array.isArray(bomItems) || !bomItems.length)
+    return { rows: [], count: 0, ok: true };
+
+  const matCsv = bomItems
+    .map((x) => x.matCode)
+    .filter(Boolean)
+    .join(",");
+  let availMap = new Map();
+  if (matCsv) {
+    const avail = await mapper.query("materials.selectAvailableByCodesCsv", [
+      matCsv,
+    ]);
+    (avail || []).forEach((a) => availMap.set(a.matCode, a));
+  }
+
+  const rows = bomItems.map((it) => {
+    const a = availMap.get(it.matCode) || {};
+    const unit = it.unit || a.unit || "";
+    const bomQty = Number(it.qty || 0);
+    const requiredQty = Math.max(0, bomQty * tgt);
+    const availableQty = Math.max(0, Number(a.availableQty || 0));
+    const shortage = Math.max(0, requiredQty - availableQty);
+    return {
+      matCode: it.matCode,
+      matName: it.matName,
+      unit,
+      bomQty,
+      requiredQty,
+      availableQty,
+      shortage,
+    };
+  });
+
+  return { rows, count: rows.length, ok: true };
+}
+
+/* =========================
+ * 작업지시(Work Orders)
+ * ========================= */
+
+/* 작업지시 생성 + 자재예약 */
 async function createWorkOrder(body = {}) {
   const f = body?.form || {};
-  const selectedPlanIds = body?.selectedPlanIds || []; // [1,2,3]
+  const selectedPlanIds = body?.selectedPlanIds || [];
 
-  if (!f.issueNumber) throw new Error("지시번호가 없습니다.");
-  if (!f.orderDate) throw new Error("지시일자를 입력하세요.");
-  if (!f.writer && !f.contact) throw new Error("작성자를 입력하세요.");
-  if (!f.productCode || !f.productName) throw new Error("제품을 선택하세요.");
-  if (!f.dueDate) throw new Error("납기일자를 입력하세요.");
+  if (!f.issueNumber) return { ok: false, msg: "지시번호가 없습니다." };
+  if (!f.orderDate) return { ok: false, msg: "지시일자를 입력하세요." };
+  if (!f.writer && !f.contact)
+    return { ok: false, msg: "작성자를 입력하세요." };
+  if (!f.productCode || !f.productName)
+    return { ok: false, msg: "제품을 선택하세요." };
+  if (!f.dueDate) return { ok: false, msg: "납기일자를 입력하세요." };
 
   const csv = (selectedPlanIds || [])
     .map((v) => String(v).trim())
     .filter((v) => /^\d+$/.test(v))
     .join(",");
 
-  // 지시명 자동 채움 (프론트에서 없는 경우)
   let orderName = (f.orderName || "").trim();
   if (!orderName && csv) {
     const r = await mapper.query("workorder.selectPlanNamesInCsv", [csv]);
@@ -217,32 +248,60 @@ async function createWorkOrder(body = {}) {
     orderName = row?.names || "";
   }
 
-  // 제품 유형 보장
   const prdType =
     f.productType || (await resolveProductType(f.productCode, "완제품"));
 
+  // 1) 지시 생성
   const res = await mapper.query("workorder.sp.create", [
-    f.issueNumber, // wo_no
-    orderName || null, // wo_name
-    (f.orderDate || "").substring(0, 10) || null, // wo_date
-    f.writer || f.contact || "", // writer
-    f.productCode || "", // product_code
-    f.productName || "", // product_name
-    (f.dueDate || "").substring(0, 10) || null, // due_date
-    Number(f.targetQty || 0), // target_qty
-    csv || null, // plan_ids_csv
-    f.memo || null, // memo
+    f.issueNumber,
+    orderName || null,
+    (f.orderDate || "").substring(0, 10) || null,
+    f.writer || f.contact || "",
+    f.productCode || "",
+    f.productName || "",
+    (f.dueDate || "").substring(0, 10) || null,
+    Number(f.targetQty || 0),
+    csv || null,
+    f.memo || null,
   ]);
-
-  // CALL 결과: [[{ id }], meta] 또는 [{ id }]
   const woId = Array.isArray(res?.[0]) ? res[0][0]?.id : res?.[0]?.id;
 
-  // SP가 product_type을 세팅하지 않는 경우 보정
-  if (woId) {
-    await mapper.query("workorder.updateProductType", [prdType, Number(woId)]);
+  if (!woId) return { ok: false, msg: "지시 저장 실패" };
+
+  // 2) product_type 보정 + 상태행 생성
+  await mapper.query("workorder.updateProductType", [prdType, Number(woId)]);
+  await mapper.query("exec.initStatesForWo", [Number(woId), prdType]);
+
+  // 3) 자재 예약 가능 여부 확인
+  const mat = await getMaterialStatus({
+    productCode: f.productCode,
+    targetQty: Number(f.targetQty || 0),
+  });
+  const shortages = (mat.rows || []).filter((r) => Number(r.shortage || 0) > 0);
+
+  if (shortages.length) {
+    // 💥 예약 불가 → 생성 취소(지시 삭제)
+    await mapper.query("workorder.sp.delete", [String(woId)]);
+    return {
+      ok: false,
+      msg: "자재 부족으로 작업지시를 생성할 수 없습니다.",
+      shortages,
+    };
   }
 
-  return { woId, woNo: f.issueNumber };
+  // 4) 예약 생성
+  for (const r of mat.rows || []) {
+    if (Number(r.requiredQty || 0) <= 0) continue;
+    await mapper.query("materials.reserveInsert", [
+      Number(woId),
+      f.productCode,
+      r.matCode,
+      Number(r.requiredQty || 0),
+      `WO ${f.issueNumber}`,
+    ]);
+  }
+
+  return { ok: true, woId, woNo: f.issueNumber };
 }
 
 /* 작업지시 목록 */
@@ -251,7 +310,7 @@ async function getWorkOrders({ kw = "", page = 1, size = 10 }) {
   const r1 = await mapper.query("workorder.sp.select", [kw, limit, offset]);
   const rows = Array.isArray(r1?.[0]) ? r1[0] : Array.isArray(r1) ? r1 : [];
 
-  // productType 누락분 보정
+  // productType 보정
   const missingCodes = rows
     .filter((x) => !x.productType && x.productCode)
     .map((x) => x.productCode);
@@ -268,7 +327,7 @@ async function getWorkOrders({ kw = "", page = 1, size = 10 }) {
 
   const r2 = await mapper.query("workorder.sp.count", [kw]);
   const cntRow = Array.isArray(r2?.[0]) ? r2[0][0] : r2?.[0];
-  return { rows, total: Number(cntRow?.cnt || 0) };
+  return { rows, total: Number(cntRow?.cnt || 0), ok: true };
 }
 
 /* 작업지시 수정 */
@@ -288,39 +347,43 @@ async function updateWorkOrder(id, body = {}) {
   const affected = Array.isArray(res?.[0])
     ? res[0][0]?.affected
     : res?.[0]?.affected || 0;
-  return { affected };
+  return { affected, ok: true };
 }
 
-/* 작업지시 삭제 */
+/* 작업지시 삭제 + 예약 환원 */
 async function deleteWorkOrders(ids = []) {
   const onlyNums = (Array.isArray(ids) ? ids : [])
     .map((v) => String(v).trim())
     .filter((v) => /^\d+$/.test(v));
-  if (!onlyNums.length) return { affected: 0 };
 
+  if (!onlyNums.length) return { affected: 0, ok: true };
+
+  // 1) 예약 환원
+  for (const id of onlyNums) {
+    await mapper.query("materials.reserveCancelByWo", [Number(id)]);
+  }
+
+  // 2) 지시 삭제
   const csv = onlyNums.join(",");
   const res = await mapper.query("workorder.sp.delete", [csv]);
   const affected = Array.isArray(res?.[0])
     ? res[0][0]?.affected
     : res?.[0]?.affected || 0;
-  return { affected };
+
+  return { affected, ok: true };
 }
 
 /* =========================
- * 공정 상태 조회
+ * 공정 상태 조회/진행
  * ========================= */
 async function getExecState(woId) {
   const rows = await mapper.query("exec.getState", [Number(woId)]);
   return rows || [];
 }
 
-/* =========================
- * 작업 시작 (시작 시각 DB 기록)
- * ========================= */
 async function startExec({ woId, process, workerId, equipIds = [], inputQty }) {
   if (!woId || !process || !inputQty) throw new Error("필수값 누락");
 
-  // 상태 upsert + 실행 row 생성 (NOW()로 started_at/start_at 기록)
   await mapper.query("exec.upsertState", [
     Number(woId),
     process,
@@ -328,7 +391,6 @@ async function startExec({ woId, process, workerId, equipIds = [], inputQty }) {
     workerId || null,
     (equipIds || []).join(",") || null,
   ]);
-
   await mapper.query("exec.insertRun", [
     Number(woId),
     process,
@@ -337,16 +399,12 @@ async function startExec({ woId, process, workerId, equipIds = [], inputQty }) {
     (equipIds || []).join(",") || null,
   ]);
 
-  // 최신 상태 반환(새로고침 복원 용)
   const st =
     (await mapper.query("exec.getStateOne", [Number(woId), process]))?.[0] ||
     null;
   return { ok: true, startedAt: st?.started_at || null, state: st };
 }
 
-/* =========================
- * 작업 일시정지
- * ========================= */
 async function pauseExec({ woId, process, partialDone = 0 }) {
   await mapper.query("exec.pauseLatest", [
     Number(partialDone || 0),
@@ -363,29 +421,21 @@ async function pauseExec({ woId, process, partialDone = 0 }) {
   return { ok: true };
 }
 
-/* =========================
- * 작업 종료 (종료 시각 DB 기록 + 품질큐 적재)
- * ========================= */
 async function finishExec({ woId, process, addDone = 0 }) {
-  // 1) 가장 최근 실행건 DONE 반영 (work_order_exec.end_at = NOW())
   await mapper.query("exec.finishLatest", [
     Number(addDone || 0),
     Number(woId),
     process,
   ]);
 
-  // 2) 헤더 조회(목표/유형)
   const h = (await mapper.query("exec.getWoHeader", [Number(woId)]))?.[0];
   const target = Number(h?.target_qty || 0);
   const ptype = h?.product_type || "완제품";
 
-  // 3) 공정 상태 누적/진행률 갱신 (100%되면 work_order_process_state.ended_at=NOW())
   await mapper.query("exec.bumpStateOnFinish", [
     Number(addDone || 0),
     target,
     Number(addDone || 0),
-    target,
-    target,
     Number(addDone || 0),
     target,
     target,
@@ -396,7 +446,6 @@ async function finishExec({ woId, process, addDone = 0 }) {
     process,
   ]);
 
-  // 4) 모든 필요 공정 완료되면 품질 큐에 enqueue
   const need =
     (await mapper.query("exec.countRequiredProcs", [ptype]))?.[0]?.cnt || 0;
   const done =
@@ -407,32 +456,39 @@ async function finishExec({ woId, process, addDone = 0 }) {
     await mapper.query("exec.enqueueQuality", [Number(woId), target]);
   }
 
-  // 5) 최신 상태 반환
   const st =
     (await mapper.query("exec.getStateOne", [Number(woId), process]))?.[0] ||
     null;
+
+  const lastRun = await mapper.query(
+    `
+      SELECT end_at AS endAt
+      FROM work_order_exec
+      WHERE wo_id = ? AND process_code = ?
+      ORDER BY id DESC
+      LIMIT 1
+    `,
+    [Number(woId), process]
+  );
+  const runEndedAt = lastRun?.[0]?.endAt || null;
+
   return {
     ok: true,
     allDone,
-    endedAt: st?.ended_at || null,
+    endedAt: runEndedAt || st?.ended_at || null,
     progress: Number(st?.progress || 0),
     prodQty: Number(st?.prod_qty || 0),
   };
 }
 
 /* =========================
- * 설비 목록 + 상태 계산
- *  - 입력: process (예: 'PRC-001'), 없으면 전체
- *  - 상태 우선순위: IN_USE > MAINT(FS_STATUS=1) > AVAILABLE
+ * 설비/작업자
  * ========================= */
 async function getFacilitiesWithStatus({ process = "" } = {}) {
-  // 1) 설비 + 최신 FACILITY_STATUS (fs_status, fs_reason 등 함께)
   const base = await mapper.query("facility.selectWithLatestStatus", [
     process,
     process,
   ]);
-
-  // 2) 현재 실행 중 설비 id 세트
   const runRows = await mapper.query("production.selectRunningEquipIds");
   const runSet = new Set();
   for (const r of runRows || []) {
@@ -442,46 +498,58 @@ async function getFacilitiesWithStatus({ process = "" } = {}) {
       .filter(Boolean)
       .forEach((id) => runSet.add(id));
   }
-
-  // 3) 최종 상태 매핑
   const rows = (base || []).map((r) => {
     let status = "AVAILABLE";
     if (runSet.has(r.facId)) status = "IN_USE";
     else if (Number(r.fsStatus) === 1) status = "MAINT";
-
     return {
       id: r.facId,
       code: r.facId,
       name: r.facName,
-      process: r.prId, // 예: PRC-001
-      status, // AVAILABLE / IN_USE / MAINT
+      process: r.prId,
+      status,
       manager: r.manager,
       company: r.facCompany,
       useYn: Number(r.facUse || 0),
       type: r.facType,
-      fsStatus: r.fsStatus, // 0/1
+      fsStatus: r.fsStatus,
       fsReason: r.fsReason || null,
       downStart: r.downStart || null,
       downEnd: r.downEnd || null,
     };
   });
-
-  return { rows, count: rows.length };
+  return { rows, count: rows.length, ok: true };
 }
 
 /* =========================
- * 생산 작업자 조회 (EMPLOYEES)
+ * 생산 작업자 조회
  * ========================= */
-async function getProductionWorkers() {
-  const rows = (await mapper.query("production.selectWorkers")) || [];
-  return rows.map((r) => ({
+async function getProductionWorkers(dept = "생산") {
+  // 1차: 요청한 부서(기본 '생산')
+  let rows = await mapper.query("production.selectWorkers.employees", [
+    dept,
+    dept,
+    dept,
+  ]);
+
+  // 그래도 0이면 2차: 완전 개방(부서필터 해제) 후 JS에서 '생산' 포함만 추리기
+  if (!Array.isArray(rows) || rows.length === 0) {
+    const any = await mapper.query("production.selectWorkers.employees", [
+      "",
+      "",
+      "",
+    ]);
+    rows = (any || []).filter((r) => String(r.dept || "").includes("생산"));
+  }
+
+  return (rows || []).map((r) => ({
     id: r.id,
     name: r.name,
-    dept: r.dept,
-    role: r.auth,
-    phone: r.phone,
-    email: r.email,
-    status: r.empStatus || "재직",
+    dept: r.dept || "생산",
+    role: r.auth || "",
+    phone: r.phone || "",
+    email: r.email || "",
+    status: "재직",
   }));
 }
 
@@ -500,6 +568,8 @@ module.exports = {
   deleteWorkOrders,
   // BOM
   getBomForProduct,
+  // 자재 현황
+  getMaterialStatus,
   // 공정
   getExecState,
   startExec,

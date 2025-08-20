@@ -28,14 +28,22 @@ const quartz = themeQuartz;
 const tab = ref(0); // 0번째 탭이 기본 선택 (원자재)
 
 const rowData = ref([]);
+// 0820/이동섭 작업
 const colDefs = [
   { field: '자재명', headerName: '자재명', flex: 1 },
   { field: '자재코드', headerName: '자재코드', flex: 1 },
   { field: '규격', headerName: '규격', flex: 1 },
-  { field: '단위', headerName: '단위', flex: 1 },
-  { field: '자재설명', headerName: '자재설명', flex: 1 },
-  { field: '수량', headerName: '수량', flex: 1 }
+  { field: '단위', headerName: '단위', flex: 0.7 },
+  { field: '자재설명', headerName: '자재설명', flex: 1.2 },
+  {
+    field: '수량',
+    headerName: '수량',
+    flex: 0.8,
+    cellClass: 'ag-right-aligned-cell',
+    valueFormatter: (p) => (p.value == null ? '' : Number(p.value).toLocaleString('ko-KR')) // 정수처리
+  }
 ];
+//
 
 watch(
   tab,
@@ -55,7 +63,7 @@ watch(
         규격: item.MAT_SIZE,
         단위: item.MAT_UNIT,
         자재설명: item.MAT_NOTE,
-        수량: item.MAT_QTY
+        수량: item.MAT_QTY ?? 0 // 현재 재고(가용)
       }));
     } catch (error) {
       console.error('재고 목록을 가져오는 중 오류 발생:' + error);
