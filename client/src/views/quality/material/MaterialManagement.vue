@@ -95,31 +95,33 @@ const breadcrumbs = ref([
 
 /* ------------ 불합격 사유 관련 데이터 ------------ */
 const defectReason = ref({
+  category: '',
+  severity: '',
   description: ''
 });
 
 // 원자재 품질기준 조회
 // DB에서 데이터 가져오기
-// const getQStandardList = async () => {
-//   try {
-//     const url = 'http://localhost:3000/qstdlist';
+const getQStandardList = async () => {
+  try {
+    const url = 'http://localhost:3000/qstdlist';
 
-//     const result = await axios.get(url);
+    const result = await axios.get(url);
 
-//     if (result.data && result.data.length > 0) {
-//       qcStdRowData.value = result.data.map((item) => ({
-//         stdName: item.STD_NAME,
-//         stdContent: item.STD_CONTENT,
-//         allowedValue: item.ALLOWED_VALUE
-//       }));
-//     } else {
-//       qcStdRowData.value = [];
-//     }
-//   } catch (err) {
-//     console.error('데이터 조회 중 오류:', err);
-//     qcStdRowData.value = [];
-//   }
-// };
+    if (result.data && result.data.length > 0) {
+      qcStdRowData.value = result.data.map((item) => ({
+        stdName: item.STD_NAME,
+        stdContent: item.STD_CONTENT,
+        allowedValue: item.ALLOWED_VALUE
+      }));
+    } else {
+      qcStdRowData.value = [];
+    }
+  } catch (err) {
+    console.error('데이터 조회 중 오류:', err);
+    qcStdRowData.value = [];
+  }
+};
 
 /* ------------ 1) 검사기준 그리드 (선택=합격) ------------ */
 // 행 데이터 (rowId로 쓸 고유 키 _id 포함)
@@ -274,7 +276,6 @@ function resetForm() {
   };
 }
 
-// 저장버튼
 async function saveForm() {
   const d = detailRows.value[0];
   const isPass = finalStatus.value === '합격';
@@ -284,28 +285,24 @@ async function saveForm() {
     return;
   }
 
-  const passData = {
-    RECEIPT_NO: d.inNo.trim(),
-    MAT_CODE: d.materialCode.trim(),
-    Q_CHECKED_DATE: d.doneDate,
-    TOTAL_QTY: Number(d.totalQty) || 0,
-    CREATED_BY: d.user?.trim() || null // ← 핵심
-  };
-
-  const rjtData = {
-    RECEIPT_NO: d.inNo,
-    MAT_CODE: d.materialCode,
-    RJT_REASON: defectReason.value.description.trim().slice(0, 100),
-    Q_CHECKED_DATE: d.doneDate,
-    TOTAL_QTY: Number(d.totalQty),
-    CREATED_BY: d.user
-  };
-
   if (isPass) {
-    await axios.post('http://localhost:3000/passmat', passData);
+    await axios.post('http://localhost:3000/passmat', {
+      RECEIPT_NO: d.inNo,
+      MAT_CODE: d.materialCode,
+      TOTAL_QTY: Number(d.totalQty),
+      Q_CHECKED_DATE: d.doneDate,
+      CREATED_BY: d.user
+    });
     alert('합격등록이 완료되었습니다.');
   } else {
-    await axios.post('http://localhost:3000/rjtmat', rjtData);
+    await axios.post('http://localhost:3000/rjtmat', {
+      RECEIPT_NO: d.inNo,
+      MAT_CODE: d.materialCode,
+      RJT_REASON: defectReason.value.description.trim().slice(0, 100),
+      Q_CHECKED_DATE: d.doneDate,
+      TOTAL_QTY: Number(d.totalQty),
+      CREATED_BY: d.user
+    });
     alert('불합격등록이 완료되었습니다.');
   }
 }

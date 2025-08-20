@@ -80,7 +80,7 @@ interface StatusOption {
 // 처리상태 옵션 - 하드코딩으로 설정 (불량사유 기반)
 const statusOptions = ref<StatusOption[]>([
   { label: '합격', value: '합격' },
-  { label: '불합격', value: '불합격' }
+  { label: '불량', value: '불량' }
 ]);
 
 // ----- 상단 필터를 적용한 그리드 데이터 ----
@@ -95,7 +95,7 @@ const gridData = computed(() => {
       const byName = !name || r.materialCode.toLowerCase().includes(name);
 
       // 동적으로 처리상태 결정
-      const dynamicStatus = r.rjtReason && r.rjtReason.trim() !== '' ? '불합격' : '합격';
+      const dynamicStatus = r.rjtReason && r.rjtReason.trim() !== '' ? '불량' : '합격';
 
       // 처리상태 필터링
       const byStatus = !selectedStatusCode || dynamicStatus === selectedStatusCode;
@@ -108,7 +108,7 @@ const gridData = computed(() => {
     .map((r) => ({
       ...r,
       // 처리상태를 불량사유 유무에 따라 동적으로 설정
-      status: r.rjtReason && r.rjtReason.trim() !== '' ? '불합격' : '합격'
+      status: r.rjtReason && r.rjtReason.trim() !== '' ? '불량' : '합격'
     }));
 });
 
@@ -141,7 +141,7 @@ const colDefs: Ref<ColDef<Row>[]> = ref([
       return date.toISOString().split('T')[0];
     }
   },
-  { headerName: '불합격사유', field: 'rjtReason', flex: 1, resizable: true, suppressSizeToFit: true }
+  { headerName: '불량사유', field: 'rjtReason', flex: 1, resizable: true, suppressSizeToFit: true }
 ]);
 
 // 페이지네이션, 컬럼 사이즈조절
