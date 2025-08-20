@@ -268,7 +268,7 @@ const onRowClicked1 = async (e) => {
 //BOM 추가(클릭이벤트)
 
 const submitForm = async () => {
-  if (!selectedProduct.value) {
+  if (!form.value.prdName) {
     alert('제품을 선택해주세요.');
     return;
   }
