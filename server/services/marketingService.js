@@ -74,18 +74,14 @@ const getNextLotNo = async () => {
 
 // 입고 - 등록
 const inboundInsert = async (rows) => {
-  const lot = await getNextLotNo();
-  const lotNo = lot[0]["generate_lot_number()"];
-  console.log("lot번호 :", lot);
   for (const row of rows) {
     console.log(row);
     const params = [
       row.RECEIVED_QTY,
+      row.RECEIVED_DATE,
       row.PRD_CERT_ID,
+      row.PRD_LOT,
       row.PRD_CODE,
-      row.PRD_TYPE,
-      row.PRD_NAME,
-      lotNo,
     ];
     await mariadb.query("inboundInsert", params);
   }
@@ -100,23 +96,6 @@ const inboundSearch = async (data) => {
   return result;
 };
 
-// LOT 조회
-const lotSelect = async () => {
-  let list = await mariadb.query("lotSelect");
-  return list;
-};
-
-// 출하지시서 - 창고 조회
-const wrNameSelect = async () => {
-  let list = await mariadb.query("wrNameSelect");
-  return list;
-};
-
-// 출하이력  조회
-const shipSelect = async () => {
-  let list = await mariadb.query("shipSelect");
-  return list;
-};
 module.exports = {
   addAccount,
   inboundList,
@@ -128,7 +107,4 @@ module.exports = {
   getAccountList,
   getItemList,
   addOrder,
-  lotSelect,
-  wrNameSelect,
-  shipSelect,
 };
