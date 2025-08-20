@@ -19,7 +19,6 @@
     "router": "^2.2.0"
   },
   "devDependencies": {
-    "@vue/cli-plugin-router": "~5.0.0",
     "nodemon": "^3.1.10"
   },
   "description": ""
