@@ -16,6 +16,7 @@ const selectAccountList = `
     created_at   as createdAt,
     updated_at   as updatedAt
   from CUSTOMERS
+  where cus_use = 1
 `;
 
 const selectItemList = `
@@ -83,21 +84,6 @@ const shipPrdSelect = `SELECT r.RECEIVED_NO,
 FROM PRODUCT_RECEIPT AS r RIGHT JOIN PRODUCT_CERTIFICATE AS c
 						   ON r.PRD_CERT_ID = c.PRD_CERT_ID`;
 
-
-
-
-const selectOrderList = `
-  select 
-    REQ_DATE,       
-    REQ_ID,     
-    PRD_CODE,    
-    PRD_NAME,  
-    REQ_QTY,    
-    CUS_NAME,     
-    REQ_DDAY,   
-    REQ_NOTE   
-  from CUSTOMERS
-`;
 module.exports = {
   insertAccount,
   selectAccountList,
