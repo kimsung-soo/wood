@@ -34,6 +34,7 @@ router.post("/inboundInsert", async (req, res) => {
     console.log(e);
   }
 });
+
 // BOM_DETAIL 조회
 router.post("/inboundSearch", async (req, res) => {
   const data = req.body;
@@ -62,4 +63,5 @@ router.get("/shipSelect", async (req, res) => {
   let list = await marketingService.shipSelect();
   res.send(list);
 });
+
 module.exports = router;

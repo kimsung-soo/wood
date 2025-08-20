@@ -117,6 +117,7 @@ const shipSelect = async () => {
   let list = await mariadb.query("shipSelect");
   return list;
 };
+
 module.exports = {
   addAccount,
   inboundList,
@@ -128,7 +129,9 @@ module.exports = {
   getAccountList,
   getItemList,
   addOrder,
+
   lotSelect,
   wrNameSelect,
   shipSelect,
+
 };
