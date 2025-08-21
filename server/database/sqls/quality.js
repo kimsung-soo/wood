@@ -62,6 +62,11 @@ VALUES
 const selectProductCertificate = `SELECT PRD_CERT_ID, PRD_ID, PRD_NAME, Q_CHECKED_DATE, PRD_STATUS
 FROM PRODUCT_CERTIFICATE`;
 
+// 제품성적서 품질기준조회 및 수치값
+// const prdCertValue = `
+
+// `;
+
 // 품질기준조회
 const selectQStandard = `SELECT STD_NAME, STD_TYPE, ALLOWED_VALUE 
                          FROM QUALITY_STANDARD`;
