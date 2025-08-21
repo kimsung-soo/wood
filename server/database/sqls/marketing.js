@@ -17,6 +17,7 @@ const selectAccountList = `
     updated_at   as updatedAt
   from CUSTOMERS
   where cus_use = 1
+  order by cus_id desc
 `;
 
 const selectItemList = `
@@ -152,6 +153,16 @@ const shipSelect = `SELECT SHIP_NO,
                     FROM SHIPMENT
                     ORDER BY ROWNUM DESC`;
 
+
+
+// 거래처 삭제
+const deleteAccount = `
+  DELETE FROM CUSTOMERS
+  WHERE CUS_ID=?
+
+`;
+
+
 module.exports = {
   insertAccount,
   selectAccountList,
@@ -170,4 +181,5 @@ module.exports = {
   reqInsert,
   reqDetailInsert,
   reqSelect,
+  deleteAccount,
 };
