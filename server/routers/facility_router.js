@@ -180,12 +180,10 @@ router.get("/facility/inspections/open", async (_req, res) => {
     res.send(await facilityService.facilityOpenInspections());
   } catch (err) {
     console.error("FACILITY OPEN INSPECTION LIST ERROR:", err);
-    res
-      .status(500)
-      .json({
-        message: "FACILITY OPEN INSPECTION LIST ERROR",
-        error: err.message,
-      });
+    res.status(500).json({
+      message: "FACILITY OPEN INSPECTION LIST ERROR",
+      error: err.message,
+    });
   }
 });
 router.post("/facility/inspection/complete", async (req, res) => {
@@ -213,12 +211,10 @@ router.post("/facility/inspection/complete", async (req, res) => {
     res.status(200).json({ ok: true });
   } catch (err) {
     console.error("FACILITY INSPECTION COMPLETE ERROR:", err);
-    res
-      .status(500)
-      .json({
-        message: "FACILITY INSPECTION COMPLETE ERROR",
-        error: err.message,
-      });
+    res.status(500).json({
+      message: "FACILITY INSPECTION COMPLETE ERROR",
+      error: err.message,
+    });
   }
 });
 router.get("/facility/inspections/history", async (req, res) => {
@@ -232,12 +228,10 @@ router.get("/facility/inspections/history", async (req, res) => {
     );
   } catch (err) {
     console.error("FACILITY INSPECTION HISTORY ERROR:", err);
-    res
-      .status(500)
-      .json({
-        message: "FACILITY INSPECTION HISTORY ERROR",
-        error: err.message,
-      });
+    res.status(500).json({
+      message: "FACILITY INSPECTION HISTORY ERROR",
+      error: err.message,
+    });
   }
 });
 
