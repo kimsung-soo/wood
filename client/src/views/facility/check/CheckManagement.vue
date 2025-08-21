@@ -1,9 +1,10 @@
 <template>
   <BaseBreadcrumb :title="page.title" :breadcrumbs="breadcrumbs" />
+
   <UiParentCard title="설비 점검관리">
     <v-row class="mb-2 py-0">
       <v-col cols="12" class="d-flex align-center">
-        <v-btn color="warning" variant="flat" @click="openModal('공정 조회')"> 공정 조회 </v-btn>
+        <v-btn color="warning" variant="flat" @click="openModal('공정 조회')">공정 조회</v-btn>
       </v-col>
     </v-row>
 
@@ -27,16 +28,15 @@
       @row-clicked="onPick"
     />
 
-    <!-- 공정 조회 모달 -->
     <MoDal ref="modalRef" :title="modalTitle" :rowData="modalRowData" :colDefs="modalColDefs" @confirm="modalConfirm" />
 
-    <!-- 상세입력 -->
     <v-card v-if="form.code" class="mt-6 pa-4 rounded-xl elevation-1 checker-card">
       <h3>점검 처리 입력</h3>
       <v-row dense>
         <v-col cols="12" md="6">
           <v-text-field label="설비코드" v-model="form.code" dense outlined readonly />
           <v-text-field label="설비명" v-model="form.name" dense outlined readonly />
+          <v-text-field label="설비유형" v-model="form.type" dense outlined readonly />
           <v-text-field label="점검내역" v-model="form.inspectNote" dense outlined />
           <v-text-field label="담당자" v-model="form.manager" dense outlined />
           <v-text-field label="부적합 사유" v-model="form.ngReason" dense outlined :disabled="form.fit !== '부적합'" />
@@ -66,25 +66,47 @@
 
 <script setup>
 import { ref, reactive, shallowRef, onMounted } from 'vue';
+
+import axios from 'axios';
+import dayjs from 'dayjs';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
+import MoDal from '@/views/common/NewModal.vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community';
-import axios from 'axios';
+
+// ag-grid 등록
 ModuleRegistry.registerModules([AllCommunityModule]);
 const quartz = themeQuartz;
 
 const page = ref({ title: '설비 점검관리' });
 const breadcrumbs = shallowRef([
   { title: '설비', disabled: true, href: '#' },
-  { title: '점검관리', disabled: false, href: '#' }
+  { title: '점검 관리', disabled: false, href: '#' }
 ]);
 
+
+// API 경로
+const apiBase = import.meta?.env?.VITE_API_BASE || '/api';
+const INSPECTION_COMPLETE_API = `${apiBase}/facility/inspection/complete`;
+const PROCESS_API = `${apiBase}/process`;
+
+// 설비유형 코드맵
+let fcMap = new Map();
+const preloadCodeMaps = async () => {
+  const { data } = await axios.get(`${apiBase}/common/codes/FC`);
+  fcMap = new Map(data.map((r) => [String(r.code ?? r.CODE), r.code_name ?? r.CODE_NAME]));
+};
+
+// 공정코드 필터링
 const processCode = ref('');
 const gridApi = ref(null);
-const onGridReady = (e) => (gridApi.value = e.api);
+const onGridReady = (e) => {
+  gridApi.value = e.api;
+  init();
+};
 
-/** 공정코드 필터 */
+
 const applyProcessFilter = (procCode) => {
   if (!gridApi.value) return;
   gridApi.value.setFilterModel({
@@ -93,7 +115,9 @@ const applyProcessFilter = (procCode) => {
   gridApi.value.onFilterChanged();
 };
 
-/* 컬럼 정의 */
+
+// 컬럼 정의
+
 const columnDefs = ref([
   { field: '설비코드', flex: 1 },
   { field: '설비명', flex: 1 },
@@ -101,51 +125,67 @@ const columnDefs = ref([
   {
     field: '설비상태',
     flex: 1,
-    cellStyle: (p) => {
-      if (p.value === '가동') return { color: 'blue', fontWeight: 'bold' };
-      if (p.value === '비가동') return { color: 'red', fontWeight: 'bold' };
-      return null;
-    }
+
+    cellStyle: (p) => (p.value === '점검' ? { color: 'red', fontWeight: 'bold' } : { color: 'blue', fontWeight: 'bold' })
+
   },
   { field: '비가동사유', flex: 1 },
   { field: '비가동시작시간', flex: 1 },
-  { field: '적합여부', flex: 1 },
-  { field: '다음점검일', flex: 1 },
+  { field: '적합여부', flex: 1, hide: true },
+  { field: '다음점검일', flex: 1, hide: true },
   { field: '담당자', flex: 1 }
 ]);
 const defaultColDef = { editable: false, sortable: true, resizable: true };
 
-/* ───────── API ───────── */
-const apiBase = 'http://localhost:3000';
-const INSPECTION_OPEN_API = `${apiBase}/facility/inspections/open`;
-const INSPECTION_COMPLETE_API = `${apiBase}/facility/inspection/complete`;
-const STATUS_CURRENT_API = (facId) => `${apiBase}/facility/status/current/${facId}`;
-const PROCESS_API = `${apiBase}/process`;
 
-/* 서버 → 그리드 매핑 */
+// 데이터 조회
+const fetchFacilities = async () => (await axios.get(`${apiBase}/facility`)).data || [];
+const fetchStatusList = async () => (await axios.get(`${apiBase}/facility/status`)).data || [];
+
+
 const rows = ref([]);
-const mapOpenInspection = (r) => ({
-  공정코드: r.PR_ID ?? '',
-  설비코드: r.FAC_ID,
-  설비명: r.FAC_NAME,
-  설비유형: r.FAC_TYPE_NM ?? r.FAC_TYPE ?? '',
-  설비상태: '비가동',
-  비가동사유: r.FS_REASON ?? '',
-  비가동시작시간: r.DOWN_STARTDAY ? String(r.DOWN_STARTDAY).slice(0, 19).replace('T', ' ') : '',
-  적합여부: '-',
-  다음점검일: r.FS_NEXTDAY ? String(r.FS_NEXTDAY).slice(0, 10) : '-',
-  담당자: r.MANAGER ?? ''
-});
 
-// const loadOpenInspections = async () => {
-//   const { data } = await axios.get(INSPECTION_OPEN_API);
-//   rows.value = (Array.isArray(data) ? data : []).map(mapOpenInspection);
-//   if (processCode.value) applyProcessFilter(processCode.value);
-// };
+const fmtDT = (v) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm:ss') : '-');
 
-onMounted(loadOpenInspections);
+// 점검대상
+const composeRows = (statusRows, facilities) => {
+  const facMap = new Map(facilities.map((f) => [f.FAC_ID, f]));
+  const openInspections = statusRows.filter((s) => Number(s.FS_STATUS) === 1 && (s.FS_REASON || '') === '점검');
 
-/* 상세 폼 */
+  return openInspections.map((s) => {
+    const f = facMap.get(s.FAC_ID) || {};
+    const facTypeLabel = f.FAC_TYPE ? fcMap.get(String(f.FAC_TYPE)) || f.FAC_TYPE : f.FAC_TYPE_NM || '-';
+
+    return {
+      공정코드: f.PR_ID || '',
+      설비코드: s.FAC_ID,
+      설비명: f.FAC_NAME || '',
+      설비유형: facTypeLabel,
+      설비상태: '점검',
+      비가동사유: s.FS_REASON || '점검',
+      비가동시작시간: s.DOWN_STARTDAY ? fmtDT(s.DOWN_STARTDAY) : s.FS_CHECKDAY ? fmtDT(s.FS_CHECKDAY) : '',
+      적합여부: '-',
+      다음점검일: s.FS_NEXTDAY ? String(s.FS_NEXTDAY).slice(0, 10) : '-',
+      담당자: s.MANAGER ?? f.MANAGER ?? '-',
+      _fsId: s.FS_ID
+    };
+  });
+};
+
+// 초기 데이터 로드
+const init = async () => {
+  try {
+    await preloadCodeMaps();
+    const [facilities, statusRows] = await Promise.all([fetchFacilities(), fetchStatusList()]);
+    rows.value = composeRows(statusRows, facilities);
+    if (processCode.value) applyProcessFilter(processCode.value);
+  } catch (e) {
+    console.error(e);
+    rows.value = [];
+  }
+};
+
+
 const form = reactive({
   code: '',
   name: '',
@@ -156,42 +196,41 @@ const form = reactive({
   nextAt: '',
   inspectNote: '',
   fit: '',
-  ngReason: ''
+  ngReason: '',
+  _fsId: null
 });
-
 const onPick = (e) => {
   const d = e.data;
-  form.code = d.설비코드;
-  form.name = d.설비명;
-  form.type = d.설비유형;
-  form.manager = d.담당자 || '';
-  form.downStart = d.비가동시작시간 || now();
-  form.doneAt = '';
-  form.nextAt = '';
-  form.inspectNote = '';
-  form.fit = '';
-  form.ngReason = '';
+  Object.assign(form, {
+    code: d.설비코드,
+    name: d.설비명,
+    type: d.설비유형,
+    manager: d.담당자 === '-' ? '' : d.담당자,
+    downStart: d.비가동시작시간 || now(),
+    doneAt: '',
+    nextAt: d.다음점검일 === '-' ? '' : d.다음점검일,
+    inspectNote: '',
+    fit: '',
+    ngReason: '',
+    _fsId: d._fsId
+  });
 };
 
-//점검완료
+
+// 점검완료 처리
+
 const completeInspection = async () => {
-  if (!form.code) return alert('설비를 먼저 선택하세요.');
+  if (!form._fsId) return alert('설비를 먼저 선택하세요.');
   if (!form.fit) return alert('적합 여부를 선택하세요.');
   if (form.fit === '부적합' && !form.ngReason.trim()) return alert('부적합 사유를 입력하세요.');
 
   form.doneAt = now();
 
   try {
-    // 1) 현재 상태
-    const { data: cur } = await axios.get(STATUS_CURRENT_API(form.code)); // /facility/status/current/:facId
-    const FS_ID = Array.isArray(cur) ? cur[0]?.FS_ID : cur?.FS_ID;
-    if (!FS_ID) return alert('상태(FS_ID)를 찾을 수 없습니다.');
-
-    // 2) 점검완료 저장
     await axios.post(INSPECTION_COMPLETE_API, {
-      FS_ID,
+      FS_ID: form._fsId,
       FAC_ID: form.code,
-      fit: form.fit, // '적합' | '부적합'
+      fit: form.fit,
       ngReason: form.fit === '부적합' ? form.ngReason : null,
       content: form.inspectNote || null,
       nextAt: form.nextAt || null,
@@ -199,8 +238,10 @@ const completeInspection = async () => {
       manager: form.manager || null
     });
 
-    // 3) 목록 갱신
-    await loadOpenInspections();
+
+    await init();
+
+
     gridApi.value?.refreshCells({ force: true });
     alert('점검이 완료되었습니다.');
     // 선택 폼 초기화
@@ -214,7 +255,8 @@ const completeInspection = async () => {
       nextAt: '',
       inspectNote: '',
       fit: '',
-      ngReason: ''
+      ngReason: '',
+      _fsId: null
     });
   } catch (e) {
     console.error('[inspection complete] error:', e);
@@ -222,40 +264,46 @@ const completeInspection = async () => {
   }
 };
 
+
+// 유틸: 현재시각
+
 function now() {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return dayjs().format('YYYY-MM-DD HH:mm:ss');
 }
 
-/* 공정 조회 모달 */
-import MoDal from '@/views/common/NewModal.vue';
+// 공정 목록 모달
+
 const modalRef = ref(null);
 const modalTitle = ref('');
 const modalRowData = ref([]);
 const modalColDefs = ref([
-  { field: '공정코드', headerName: '공정코드', flex: 1 },
-  { field: '공정명', headerName: '공정명', flex: 1 },
-  { field: '설비유형', headerName: '설비유형', flex: 1 },
-  { field: '등록일자', headerName: '등록일자', flex: 1 },
-  { field: '작성자', headerName: '작성자', flex: 1 },
-  { field: '비고', headerName: '비고', flex: 1 }
+  { field: '공정코드', flex: 1 },
+  { field: '공정명', flex: 1 },
+  { field: '설비유형', flex: 1 },
+  { field: '등록일자', flex: 1 },
+  { field: '작성자', flex: 1 },
+  { field: '비고', flex: 1 }
 ]);
 
+// 공정 데이터 매핑
 const mapProcess = (r) => ({
   공정코드: r.PR_ID ?? r.PRC_CODE ?? '',
   공정명: r.PRC_NAME ?? '',
-  설비유형: r.FAC_TYPE ?? '',
-  등록일자: typeof r.PRC_RDATE === 'string' ? r.PRC_RDATE.slice(0, 10) : '',
+
+  설비유형: r.FAC_TYPE ? fcMap.get(String(r.FAC_TYPE)) || r.FAC_TYPE : '-',
+  등록일자: r.PRC_RDATE ? dayjs(r.PRC_RDATE).format('YYYY-MM-DD') : '',
+
   작성자: r.PRC_WRITER ?? '',
   비고: r.PRC_NOTE ?? ''
 });
 
+// 공정 목록 조회
 const fetchProcessList = async () => {
   const { data } = await axios.get(PROCESS_API);
   return (Array.isArray(data) ? data : []).map(mapProcess);
 };
 
+// 모달 열기
 const openModal = async (title) => {
   try {
     modalTitle.value = title;
@@ -267,9 +315,12 @@ const openModal = async (title) => {
   }
 };
 
+// 모달 선택 반영
 const modalConfirm = (selectedRow) => {
   if (!selectedRow) return;
   processCode.value = selectedRow.공정코드 || '';
   applyProcessFilter(selectedRow.공정코드);
 };
+
+onMounted(init);
 </script>

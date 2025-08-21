@@ -15,7 +15,6 @@
       </v-col>
     </v-row>
 
-    <!-- AG Grid -->
     <ag-grid-vue
       class="ag-theme-quartz grid-clean"
       style="height: 420px"
@@ -32,26 +31,28 @@
 </template>
 
 <script setup>
+// 기본 UI
 import { ref, shallowRef, computed, onMounted } from 'vue';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
 
+// AG Grid
 import { AgGridVue } from 'ag-grid-vue3';
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community';
 ModuleRegistry.registerModules([AllCommunityModule]);
 const quartz = themeQuartz;
 
+// API
 import axios from 'axios';
 // const apiBase = 'http://localhost:3000';
 
-// 컬럼 정의
 const columnDefs = ref([
   { field: '설비코드', flex: 1 },
   { field: '설비명', flex: 1 },
   { field: '설비유형', flex: 1 },
   { field: '점검내역', flex: 1 },
-  { field: '점검시작일', flex: 2 },
-  { field: '점검완료일', flex: 2 },
+  { field: '점검시작일', flex: 1.5 },
+  { field: '점검완료일', flex: 1.5 },
   { field: '다음점검일', flex: 1 },
   {
     field: '적합여부',
@@ -62,16 +63,15 @@ const columnDefs = ref([
       return null;
     }
   },
-  { field: '부적합사유', flex: 1 },
+  { field: '부적합사유', flex: 1.5 },
   { field: '담당자', flex: 1 }
 ]);
+
 const defaultColDef = { editable: false, sortable: true, resizable: true, suppressMenu: true };
 
-/* 검색어 & 데이터 */
 const productKeyword = ref('');
 const rawItems = ref([]);
 
-/* 날짜 포맷 */
 function fmt(dt, withTime = true) {
   if (!dt) return '';
   const d = new Date(dt);
@@ -81,10 +81,12 @@ function fmt(dt, withTime = true) {
   }
   const p = (n) => String(n).padStart(2, '0');
   const day = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  if (!withTime) return day;
   const time = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  return withTime ? `${day} ${time}` : day;
+  return `${day} ${time}`;
 }
 
+// 점검 이력 로드
 const loadInspections = async () => {
   try {
     const { data } = await axios.get(`${apiBase}/facility/inspections/history`);
@@ -102,12 +104,14 @@ const loadInspections = async () => {
       담당자: r.MANAGER ?? ''
     }));
   } catch (e) {
-    console.error('loadInspections error', e);
+    console.error('점검 이력 조회 실패:', e);
     rawItems.value = [];
   }
 };
+
 onMounted(loadInspections);
 
+// 코드/이름에 대해 간단 검색
 const filteredItems = computed(() => {
   const kw = (productKeyword.value || '').trim().toLowerCase();
   if (!kw) return rawItems.value;
