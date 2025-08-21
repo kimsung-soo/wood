@@ -64,7 +64,7 @@ const colDefs1 = ref([
   { field: '운송사', flex: 1, editable: true },
   { field: '차량번호', flex: 1, editable: true },
   { field: '출하담당자', flex: 1 },
-  { field: '납기일자', flex: 1 },
+  { field: '출하예정일자', flex: 1 },
   { field: '출하일자', flex: 1 },
   {
     field: '출하상태',
@@ -114,6 +114,7 @@ const wrShip = async () => {
     운송사: emp.DELIVERY,
     차량번호: emp.CAR_NO,
     출하담당자: emp.SHIP_WRITER,
+    출하예정일자: emp.SHIP_ORDER_DATE ? emp.SHIP_ORDER_DATE.substring(0, 10) : null,
     출하일자: emp.SHIP_DATE ? emp.SHIP_DATE.substring(0, 10) : null,
     출하상태: emp.SHIP_STATUS
   }));

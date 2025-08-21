@@ -89,19 +89,6 @@ const sidebarItem: menu[] = [
         ]
       },
       {
-        title: '생산 의뢰서',
-        children: [
-          {
-            title: '생산 의뢰서 등록',
-            to: '/marketing/MfOrderForm'
-          },
-          {
-            title: '생산 의뢰서 조회',
-            to: '/marketing/MfOrderFormList'
-          }
-        ]
-      },
-      {
         title: '제품 입출고',
         children: [
           {
@@ -359,6 +346,7 @@ const sidebarItem: menu[] = [
     children: [
       {
         title: '창고관리',
+        auth: ['관리자', '부서담당자'],
         to: '/warehouse/WareInfo'
       },
       {

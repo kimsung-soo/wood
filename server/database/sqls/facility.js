@@ -30,39 +30,10 @@ const facilityById = `
 
 // 설비 등록
 const facilityInsert = `
-  INSERT INTO FACILITY
-    (FAC_ID, FAC_NAME, FAC_TYPE, FAC_USE, FAC_COMPANY,
-     FAC_MDATE, FAC_IDATE, FAC_CHECKDAY, PR_ID, MANAGER)
-  VALUES (
-    GetNextFAC_ID(),
-    ?, ?, ?, ?, ?, ?, ?,
-    COALESCE(
-      (SELECT p.PRC_CODE
-         FROM PROCESS AS p
-        WHERE REPLACE(p.FAC_TYPE,' ','') = REPLACE(?, ' ','')
-        ORDER BY p.PRC_CODE LIMIT 1),
-      (SELECT p.PRC_CODE
-         FROM PROCESS AS p
-        WHERE REPLACE(p.FAC_TYPE,' ','') = REPLACE((
-                SELECT cm.code_name
-                  FROM code_master AS cm
-                 WHERE cm.group_code='FC'
-                   AND cm.code=?
-              ), ' ','')
-        ORDER BY p.PRC_CODE LIMIT 1),
-      (SELECT p.PRC_CODE
-         FROM PROCESS AS p
-        WHERE REPLACE(p.FAC_TYPE,' ','') = REPLACE((
-                SELECT TRIM(REPLACE(cm.code_name,'설비',''))
-                  FROM code_master AS cm
-                 WHERE cm.group_code='FC'
-                   AND cm.code=?
-              ), ' ','')
-        ORDER BY p.PRC_CODE LIMIT 1),
-      (SELECT p.PRC_CODE FROM PROCESS AS p ORDER BY p.PRC_CODE LIMIT 1)
-    ),
-    ?
-  )
+  INSERT INTO FACILITY(
+    FAC_ID, FAC_NAME, FAC_TYPE, FAC_USE, FAC_COMPANY,
+    FAC_MDATE, FAC_IDATE, FAC_CHECKDAY, PR_ID, MANAGER
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 // 설비 수정
@@ -107,15 +78,6 @@ const codeByGroup = `
 
 // 설비 + 최신 상태 1건 조회
 const facilityStatusList = `
-  WITH latest AS (
-    SELECT s.*,
-           ROW_NUMBER() OVER (
-             PARTITION BY s.FAC_ID
-             ORDER BY COALESCE(s.DOWN_STARTDAY,'0000-00-00 00:00:00') DESC,
-                      CAST(SUBSTRING(s.FS_ID,3) AS UNSIGNED) DESC
-           ) AS rn
-    FROM FACILITY_STATUS AS s
-  )
   SELECT
     f.FAC_ID, f.FAC_NAME, f.FAC_TYPE, f.PR_ID, f.FAC_COMPANY, f.MANAGER,
     f.FAC_MDATE, f.FAC_IDATE, f.FAC_CHECKDAY,
@@ -145,13 +107,13 @@ const facilityStatusInsert = `
 // 설비 상태 업데이트(비가동/점검 설정)
 const facilityStatusUpdateToDown = `
   UPDATE FACILITY_STATUS
-     SET FS_STATUS    = ?,
-         FS_REASON    = ?,
-         FS_TYPE      = ?,
-         DOWN_STARTDAY= ?,
-         FS_CHECKDAY  = ?,
-         FS_NEXTDAY   = ?,
-         MANAGER      = ?
+     SET FS_STATUS     = ?,
+         FS_REASON     = ?,
+         FS_TYPE       = ?,
+         DOWN_STARTDAY = ?,
+         FS_CHECKDAY   = ?,
+         FS_NEXTDAY    = ?,
+         MANAGER       = ?
    WHERE FS_ID = ?
 `;
 
@@ -176,14 +138,9 @@ const facilityStatusCurrentByFac = `
 
 // 설비 상태 이력 조회(필터 적용)
 const facilityStatusFilter = `
-  SELECT
-    s.*,
-    f.FAC_NAME,
-    f.PR_ID,
-    cm.code_name AS FS_TYPE_NM
-  FROM FACILITY_STATUS AS s
-  JOIN FACILITY AS f ON f.FAC_ID = s.FAC_ID
-  LEFT JOIN code_master AS cm ON cm.group_code='RR' AND cm.code=s.FS_TYPE
+  SELECT s.*, f.FAC_NAME, f.PR_ID
+  FROM FACILITY_STATUS s
+  JOIN FACILITY f ON f.FAC_ID = s.FAC_ID
   WHERE ( ? IS NULL OR s.FAC_ID = ? )
     AND ( ? IS NULL OR s.DOWN_STARTDAY >= ? )
     AND ( ? IS NULL OR COALESCE(s.DOWN_ENDDAY, NOW()) < DATE_ADD(?, INTERVAL 1 DAY) )
@@ -208,23 +165,14 @@ const facilityRepairByFacId = `
 // 상태(FS_ID) 기반 수리 내역 등록
 const facilityRepairInsertByFsId = `
   INSERT INTO FACILITY_REPAIR
-    (FR_TYPE, FR_CONTENT, FR_NOTE, MANAGER, FS_ID, FAC_ID, FR_STARTDAY, FR_ENDDAY)
-  SELECT s.FS_TYPE, ?, ?, COALESCE(?, s.MANAGER), s.FS_ID, s.FAC_ID, ?, ?
+    (FR_TYPE, FR_CONTENT, FR_NOTE, MANAGER, FS_ID, FAC_ID)
+  SELECT s.FS_TYPE, ?, ?, ?, s.FS_ID, s.FAC_ID
   FROM FACILITY_STATUS AS s
   WHERE s.FS_ID = ?
 `;
 
 // 진행중 점검 목록 조회
 const facilityOpenInspections = `
-  WITH latest AS (
-    SELECT s.*,
-           ROW_NUMBER() OVER (
-             PARTITION BY s.FAC_ID
-             ORDER BY COALESCE(s.DOWN_STARTDAY,'0000-00-00 00:00:00') DESC,
-                      CAST(SUBSTRING(s.FS_ID,3) AS UNSIGNED) DESC
-           ) AS rn
-    FROM FACILITY_STATUS AS s
-  )
   SELECT
     s.FS_ID, s.FS_SEQ, s.FAC_ID, f.PR_ID, f.FAC_NAME, f.FAC_TYPE,
     s.FS_REASON, s.FS_TYPE,
@@ -252,7 +200,11 @@ const facilityStatusEndInspection = `
 // 점검 이력 조회
 const facilityInspectionHistory = `
   SELECT
-    s.FS_ID, s.FS_SEQ, s.FAC_ID,
+    s.FS_ID,
+    s.FAC_ID,
+    f.FAC_NAME,                        
+    f.FAC_TYPE,                         
+    cm_fc.code_name AS FAC_TYPE_NM,    
     COALESCE(s.DOWN_STARTDAY, s.FS_CHECKDAY) AS INSPECT_START,
     s.FS_CHECKDAY AS INSPECT_DONE,
     c.FC_NEXTDAY  AS NEXT_INSPECT,
@@ -260,16 +212,18 @@ const facilityInspectionHistory = `
     c.FC_SUIT     AS FIT,
     c.FC_SUIT_REASON AS NG_REASON,
     COALESCE(s.MANAGER, f.MANAGER) AS MANAGER
-  FROM FACILITY_STATUS AS s
-  JOIN FACILITY_CHECK  AS c ON c.FS_ID = s.FS_ID
-  JOIN FACILITY        AS f ON f.FAC_ID = s.FAC_ID
-  LEFT JOIN code_master AS cm_fc ON cm_fc.group_code='FC' AND cm_fc.code=f.FAC_TYPE
+  FROM FACILITY_STATUS s
+  JOIN FACILITY_CHECK  c ON c.FS_ID = s.FS_ID
+  JOIN FACILITY        f ON f.FAC_ID = s.FAC_ID
+  LEFT JOIN code_master cm_fc
+         ON cm_fc.group_code='FC'
+        AND cm_fc.code = f.FAC_TYPE
   WHERE s.FS_REASON = '점검'
     AND s.DOWN_ENDDAY IS NOT NULL
     AND ( ? IS NULL OR s.FAC_ID = ? )
-    AND ( ? IS NULL OR s.FS_CHECKDAY >= ? )
-    AND ( ? IS NULL OR s.FS_CHECKDAY < DATE_ADD(?, INTERVAL 1 DAY) )
-  ORDER BY s.FS_CHECKDAY DESC, s.FS_SEQ DESC
+    AND ( ? IS NULL OR DATE(s.FS_CHECKDAY) >= DATE(?) )
+    AND ( ? IS NULL OR DATE(s.FS_CHECKDAY) <= DATE(?) )
+  ORDER BY s.FS_CHECKDAY DESC, s.FS_ID DESC
 `;
 
 // 점검 결과 등록
@@ -278,26 +232,29 @@ const facilityCheckInsert = `
     (FC_NEXTDAY, FC_SUIT, FC_SUIT_REASON, FC_CONTENT, MANAGER, FS_ID, FAC_ID)
   VALUES (?, ?, ?, ?, ?, ?, ?)
 `;
+
 module.exports = {
   nextFacilityId,
-  codeByGroup,
+  processList,
   facilitySelect,
+  facilityById,
   facilityInsert,
   facilityUpdate,
   facilityDelete,
-  processList,
-  processFacTypes,
   facilitySelectByFacType,
-  facilityStatusList,
+  codeByGroup,
 
+  facilityStatusList,
+  facilityStatusInsert,
   facilityStatusUpdateToDown,
   facilityStatusEndDowntime,
-  facilityRepairList,
-  facilityRepairByFacId,
-  facilityOpenRepairs,
   facilityStatusFilter,
   facilityStatusCurrentByFac,
-  facilityRepairInsertFromStatus,
+
+  facilityRepairList,
+  facilityRepairByFacId,
+  facilityRepairInsertByFsId,
+
   facilityOpenInspections,
   facilityStatusEndInspection,
   facilityInspectionHistory,
