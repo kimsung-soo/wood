@@ -5,15 +5,26 @@ const loginSercive = require("../services/login_service");
 // 로그인
 router.post("/login", async (req, res) => {
   let loginInfo = req.body;
+
+  console.log("loginInfo:", loginInfo);
+
   let resInfo = await loginSercive
     .loginByEmail(loginInfo)
     .catch((err) => console.log(err));
+
+  console.log("DB list:", resInfo.userInfo ? [resInfo.userInfo] : []);
+
   if (resInfo.result) {
     // 로그인 성공 했으면 세션에 저장
     req.session.user = resInfo.userInfo.email;
     req.session.save(function (err) {
       if (err) throw err;
-      res.send({ result: true, email: resInfo.userInfo.email });
+      res.send({
+        result: true,
+        email: resInfo.userInfo.email,
+        name: resInfo.userInfo.name,
+        auth: resInfo.userInfo.auth,
+      });
     });
   } else {
     // 로그인 실패

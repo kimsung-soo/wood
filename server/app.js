@@ -18,7 +18,13 @@ let sessionSetting = session({
   },
 });
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173", // 프론트 주소
+    credentials: true, // 쿠키/세션 공유 허용
+  })
+);
+
 app.use(express.json());
 app.use(sessionSetting);
 
@@ -51,4 +57,4 @@ app.use(marketingRouter);
 
 // f로그인
 const loginRouter = require("./routers/login_router.js");
-app.use(loginRouter);
+app.use("/", loginRouter);

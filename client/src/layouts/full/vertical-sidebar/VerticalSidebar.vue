@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { shallowRef } from 'vue';
+import { computed } from 'vue';
 import { useCustomizerStore } from '../../../stores/customizer';
 import sidebarItems from './sidebarItem';
+import { useAuthStore } from '@/stores/auth';
 
 import NavGroup from './NavGroup/NavGroup.vue';
 import NavItem from './NavItem/NavItem.vue';
@@ -10,7 +11,18 @@ import NavCollapse from './NavCollapse/NavCollapse.vue';
 import Logo from '../logo/LogoMain.vue';
 
 const customizer = useCustomizerStore();
-const sidebarMenu = shallowRef(sidebarItems);
+const authStore = useAuthStore(); // ✅ 현재 로그인 사용자 정보 가져오기
+
+// 현재 로그인한 유저 권한 (예: '관리자', '부서담당자', '일반사용자' ...)
+const userAuth = computed(() => authStore.user?.auth);
+
+// 메뉴 필터링
+const sidebarMenu = computed(() =>
+  sidebarItems.filter((item) => {
+    if (!item.auth) return true; // auth 조건 없으면 모두 허용
+    return item.auth.includes(userAuth.value); // 내 권한이 포함된 경우만 허용
+  })
+);
 </script>
 
 <template>
@@ -26,14 +38,9 @@ const sidebarMenu = shallowRef(sidebarItems);
     :rail="customizer.mini_sidebar"
     expand-on-hover
   >
-    <!---Logo part -->
-
     <div class="pa-5">
       <Logo />
     </div>
-    <!-- ---------------------------------------------- -->
-    <!---Navigation -->
-    <!-- ---------------------------------------------- -->
     <perfect-scrollbar class="scrollnavbar">
       <v-list class="pa-4">
         <!---Menu Loop -->
@@ -49,12 +56,6 @@ const sidebarMenu = shallowRef(sidebarItems);
           <!---End Single Item-->
         </template>
       </v-list>
-      <!-- <div class="pa-4">
-        <ExtraBox />
-      </div> -->
-      <!-- <div class="pa-4 text-center">
-        <v-chip color="inputBorder" size="small"> v1.3.0 </v-chip>
-      </div> -->
     </perfect-scrollbar>
   </v-navigation-drawer>
 </template>
