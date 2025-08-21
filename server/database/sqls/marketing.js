@@ -16,6 +16,7 @@ const selectAccountList = `
     updated_at   as updatedAt
   from CUSTOMERS
   where cus_use = 1
+  order by cus_id desc
 `;
 
 const selectItemList = `
@@ -156,6 +157,15 @@ const reqUpdateStatusByIdsCsv = `
    WHERE FIND_IN_SET(REQ_ID, ?)
  `;
 
+
+// 거래처 삭제
+const deleteAccount = `
+  DELETE FROM CUSTOMERS
+  WHERE CUS_ID=?
+
+`;
+
+
 module.exports = {
   insertAccount,
   selectAccountList,
@@ -175,4 +185,6 @@ module.exports = {
   reqDetailInsert,
   reqSelect,
   reqUpdateStatusByIdsCsv,
+  deleteAccount,
+
 };

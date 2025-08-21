@@ -9,10 +9,11 @@ const masterEmpSelect = ` SELECT EMP_NO,
                                 AUTH, 
                                 EMP_EDATE,
                                 EMP_STATUS
-                         FROM EMPLOYEES `;
+                         FROM EMPLOYEES
+                         order by EMP_NO DESC `;
 
 // 공통코드 조회
-const commonDept = `SELECT code_name 
+const commonDept = `SELECT group_code,code_name 
 from code_master
 where group_code = 'AA'`;
 const commonAuth = `SELECT code_name 
@@ -77,7 +78,8 @@ const masterPrdSelect = `select PRD_CODE,
                               PRD_WRITER, 
                               PRD_DATE, 
                               PRD_NOTE  
-                         from PRODUCT`;
+                         from PRODUCT
+                         ORDER BY PRD_CODE DESC`;
 
 // 제품 관리 - 모달(규격)
 const masterPrdModal = `SELECT group_code, code_name, use_yn
@@ -135,7 +137,8 @@ const masterPrdSearch = `SELECT
                       WHERE PRD_NAME LIKE CONCAT('%', ?, '%')`;
 
 // 자재목록
-const masterMatSelect = `SELECT MAT_CODE, MAT_NAME, MAT_TYPE, MAT_UNIT, MAT_SIZE, MAT_SAFEQT, MAT_DATE, MAT_WRITER, MAT_NOTE FROM MATERIALS`;
+const masterMatSelect = `SELECT MAT_CODE, MAT_NAME, MAT_TYPE, MAT_UNIT, MAT_SIZE, MAT_SAFEQT, MAT_DATE, MAT_WRITER, MAT_NOTE FROM MATERIALS
+ORDER BY MAT_CODE DESC;`;
 
 // 자재 모달
 const masterMatModal = `SELECT group_code, code_name, use_yn
@@ -169,7 +172,8 @@ const masterMatUnit = `SELECT code_name FROM code_master
 WHERE group_code = 'UN'`;
 
 // 재공품 목록
-const masterWIPSelect = `SELECT WIP_CODE, WIP_NAME, WIP_TYPE, WIP_SIZE,WIP_UNIT, WIP_WRITER,WIP_DATE, WIP_NOTE FROM WIP;`;
+const masterWIPSelect = `SELECT WIP_CODE, WIP_NAME, WIP_TYPE, WIP_SIZE,WIP_UNIT, WIP_WRITER,WIP_DATE, WIP_NOTE FROM WIP
+ORDER BY WIP_CODE DESC;`;
 
 // 재공품 모달
 const masterWIPModal = `SELECT group_code, code_name, use_yn
@@ -200,7 +204,8 @@ const masterWIPUnit = `SELECT code_name FROM code_master
 WHERE group_code = 'UN'`;
 
 // 공정 목록
-const masterPrcSelect = `SELECT PRC_CODE, PRC_NAME, PRC_RDATE, PRC_WRITER, PRC_NOTE, FAC_TYPE FROM PROCESS;`;
+const masterPrcSelect = `SELECT PRC_CODE, PRC_NAME, PRC_RDATE, PRC_WRITER, PRC_NOTE, FAC_TYPE FROM PROCESS
+ORDER BY PRC_CODE DESC;`;
 
 // 공정 모달(설비유형)
 const masterPrcModal = `SELECT group_code, code_name, use_yn
@@ -230,7 +235,8 @@ const BOMprdSelect = `SELECT p.PRD_NAME,
                              p.PRD_TYPE,  
                              p.PRD_DATE, 
                              p.PRD_WRITER
-                      FROM PRODUCT AS p`;
+                      FROM PRODUCT AS p
+                      ORDER BY PRD_CODE DESC`;
 
 // BOM관리 제품 클릭시 제품에 대한 BOM 조회
 const BOMbomSelect = `SELECT b.BOM_NO, 
@@ -317,7 +323,8 @@ const diaPrdList = `SELECT
       LIMIT 1) AS DIA_CODE,   
     p.PRD_WRITER,
     p.PRD_DATE
-FROM PRODUCT p`;
+FROM PRODUCT p
+ORDER BY p.PRD_CODE DESC`;
 
 // 공정흐름도 - 모달 조회
 const diaModalList = `SELECT PRC_CODE, 

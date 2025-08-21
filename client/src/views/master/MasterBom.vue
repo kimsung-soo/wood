@@ -15,11 +15,9 @@
           @cell-value-changed="onCellValueChanged"
           @rowClicked="onRowClicked1"
         >
-          <!--  :defaultColDef="{ width: 150 }" 로 전체 width지정도가능-->
         </ag-grid-vue>
 
         <br /><br />
-        <!-- 수정 -->
         <div class="d-flex align-center mb-2">
           <h5 class="mb-0 mr-3">BOM목록</h5>
           <v-text-field label="제품명" v-model="form.prdName" hide-details readonly="true" style="max-width: 150px"></v-text-field>
@@ -99,11 +97,14 @@ import { AgGridVue } from 'ag-grid-vue3';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
 import axios from 'axios';
 // 모달 임포트
-import MoDal from '../common/NewModal.vue'; // 수정된 부분: 모달 컴포넌트 임포트
+import MoDal from '../common/NewModal.vue';
 const quartz = themeQuartz;
-
 const today = new Date().toISOString().split('T')[0];
 const form = ref({ writer: '', addDate: today, bomVer: '', bomCode: '', prdName: '' });
+
+import { useToast } from 'vue-toast-notification';
+import 'vue-toast-notification/dist/theme-bootstrap.css';
+const $toast = useToast();
 
 // 제품 리스트
 const prdData = ref([]);
@@ -166,14 +167,19 @@ const breadcrumbs = shallowRef([
 
 // 제품 조회
 const prdList = async () => {
-  const res = await axios.get('http://localhost:3000/BOMprdSelect');
-  prdData.value = res.data.map((prd) => ({
-    제품명: prd.PRD_NAME,
-    제품코드: prd.PRD_CODE,
-    제품유형: prd.PRD_TYPE,
-    작성자: prd.PRD_WRITER,
-    등록일: prd.PRD_DATE.substring(0, 10)
-  }));
+  try {
+    const res = await axios.get('http://localhost:3000/BOMprdSelect');
+    prdData.value = res.data.map((prd) => ({
+      제품명: prd.PRD_NAME,
+      제품코드: prd.PRD_CODE,
+      제품유형: prd.PRD_TYPE,
+      작성자: prd.PRD_WRITER,
+      등록일: prd.PRD_DATE.substring(0, 10)
+    }));
+  } catch (error) {
+    console.error('제품 목록을 불러오는 중 오류가 발생했습니다:', error);
+    $toast.error('제품 목록을 불러올 수 없습니다.', { position: 'top-right', duration: 1000 });
+  }
 };
 
 // 자재 조회(BOM_DETAIL)
@@ -182,14 +188,19 @@ const matList = async () => {
     BOM_CODE: form.value.bomCode,
     BOM_VER: form.value.bomVer
   };
-  const res = await axios.post('http://localhost:3000/BOM_detailSelect', condition);
-  matData.value = res.data.map((prd) => ({
-    자재코드: prd.MAT_CODE,
-    자재명: prd.MAT_NAME,
-    자재유형: prd.MAT_TYPE,
-    소요수량: prd.QTY,
-    단위: prd.UNIT
-  }));
+  try {
+    const res = await axios.post('http://localhost:3000/BOM_detailSelect', condition);
+    matData.value = res.data.map((prd) => ({
+      자재코드: prd.MAT_CODE,
+      자재명: prd.MAT_NAME,
+      자재유형: prd.MAT_TYPE,
+      소요수량: prd.QTY,
+      단위: prd.UNIT
+    }));
+  } catch (error) {
+    console.error('자재 목록을 불러오는 중 오류가 발생했습니다:', error);
+    $toast.error('자재 목록을 불러올 수 없습니다.', { position: 'top-right', duration: 1000 });
+  }
 };
 
 onMounted(() => {
@@ -206,19 +217,24 @@ const onCellValueChanged = (event) => {
 const searchKeyword = ref('');
 const searchData = async () => {
   const condition = { PRD_NAME: searchKeyword.value };
-  const res = await axios.post('http://localhost:3000/bomSearch', condition);
-  prdData.value = await res.data.map((prd) => ({
-    제품명: prd.PRD_NAME,
-    제품코드: prd.PRD_CODE,
-    제품유형: prd.PRD_TYPE,
-    작성자: prd.PRD_WRITER,
-    등록일: prd.PRD_DATE.substring(0, 10)
-  }));
-  console.log('검색 키워드:', searchKeyword.value);
-  console.log(prdData.value);
-  bomData.value = [];
-  // 자재 목록 초기화
-  matData.value = [];
+  try {
+    const res = await axios.post('http://localhost:3000/bomSearch', condition);
+    prdData.value = res.data.map((prd) => ({
+      제품명: prd.PRD_NAME,
+      제품코드: prd.PRD_CODE,
+      제품유형: prd.PRD_TYPE,
+      작성자: prd.PRD_WRITER,
+      등록일: prd.PRD_DATE.substring(0, 10)
+    }));
+    console.log('검색 키워드:', searchKeyword.value);
+    console.log(prdData.value);
+    bomData.value = [];
+    matData.value = [];
+    $toast.success('검색이 완료되었습니다.', { position: 'top-right', duration: 1000 });
+  } catch (error) {
+    console.error('검색 중 오류가 발생했습니다:', error);
+    $toast.error('검색에 실패했습니다.', { position: 'top-right', duration: 1000 });
+  }
 };
 
 // 폼 데이터를 초기화하는 함수
@@ -227,63 +243,74 @@ const resetForm = () => {
     writer: '',
     addDate: ''
   };
-  // BOM 목록 초기화
   bomData.value = [];
-
-  // 자재 목록 초기화
   matData.value = [];
+  $toast.info('폼이 초기화되었습니다.', { position: 'top-right', duration: 1000 });
 };
+
 // bom 변수
 const selectedProduct = ref(null);
 const selectedBomVer = ref(null);
 
 const bomList = async (condition) => {
-  const res = await axios.post('http://localhost:3000/BOMbomSelect', condition);
-  bomData.value = res.data.map((prd) => ({
-    BOM코드: prd.BOM_CODE,
-    제품명: prd.PRD_NAME,
-    BOM버젼: prd.BOM_VER,
-    작성자: prd.BOM_WRITER,
-    사용유무: prd.USE_YN,
-    등록일: prd.BOM_RDATE.substring(0, 10)
-  }));
+  try {
+    const res = await axios.post('http://localhost:3000/BOMbomSelect', condition);
+    bomData.value = res.data.map((prd) => ({
+      BOM코드: prd.BOM_CODE,
+      제품명: prd.PRD_NAME,
+      BOM버젼: prd.BOM_VER,
+      작성자: prd.BOM_WRITER,
+      사용유무: prd.USE_YN,
+      등록일: prd.BOM_RDATE.substring(0, 10)
+    }));
+  } catch (error) {
+    console.error('BOM 목록을 불러오는 중 오류가 발생했습니다:', error);
+    $toast.error('BOM 목록을 불러올 수 없습니다.', { position: 'top-right', duration: 1000 });
+  }
 };
 const onRowClicked1 = async (e) => {
-  //e.data.제품코드
   form.value.prdName = e.data.제품명;
   const condition = { PRD_CODE: e.data.제품코드 };
-  const res = await axios.post('http://localhost:3000/BOMbomSelect', condition);
-  bomData.value = res.data.map((prd) => ({
-    BOM코드: prd.BOM_CODE,
-    제품명: prd.PRD_NAME,
-    BOM버젼: prd.BOM_VER,
-    작성자: prd.BOM_WRITER,
-    사용유무: prd.USE_YN,
-    등록일: prd.BOM_RDATE.substring(0, 10)
-  }));
-
-  selectedProduct.value = await e.data;
-  selectedBomVer.value = await res.data[0].BOM_VER;
+  try {
+    const res = await axios.post('http://localhost:3000/BOMbomSelect', condition);
+    bomData.value = res.data.map((prd) => ({
+      BOM코드: prd.BOM_CODE,
+      제품명: prd.PRD_NAME,
+      BOM버젼: prd.BOM_VER,
+      작성자: prd.BOM_WRITER,
+      사용유무: prd.USE_YN,
+      등록일: prd.BOM_RDATE.substring(0, 10)
+    }));
+    selectedProduct.value = e.data;
+    selectedBomVer.value = res.data[0]?.BOM_VER;
+  } catch (error) {
+    console.error('BOM 목록을 불러오는 중 오류가 발생했습니다:', error);
+    $toast.error('BOM 목록을 불러올 수 없습니다.', { position: 'top-right', duration: 1000 });
+  }
 };
-//BOM 추가(클릭이벤트)
 
+//BOM 추가(클릭이벤트)
 const submitForm = async () => {
   if (!form.value.prdName) {
-    alert('제품을 선택해주세요.');
+    $toast.error('제품을 선택해주세요.', { position: 'top-right', duration: 1000 });
     return;
   }
   console.log(selectedProduct.value);
   const condition = {
     PRD_CODE: selectedProduct.value.제품코드,
-    //세션에서 받아야함
-    BOM_WRITER: '김태완',
+    BOM_WRITER: '김태완', // 세션에서 받아야함
     BOM_VER: selectedBomVer.value
   };
-  const res = await axios.post('http://localhost:3000/BOMinsert', condition);
-  console.log(res);
-
-  const reloadCondition = { PRD_CODE: selectedProduct.value.제품코드 };
-  await bomList(reloadCondition);
+  try {
+    const res = await axios.post('http://localhost:3000/BOMinsert', condition);
+    console.log(res);
+    const reloadCondition = { PRD_CODE: selectedProduct.value.제품코드 };
+    await bomList(reloadCondition);
+    $toast.success('BOM이 성공적으로 추가되었습니다!', { position: 'top-right', duration: 1000 });
+  } catch (error) {
+    console.error('BOM 추가 중 오류가 발생했습니다:', error);
+    $toast.error('BOM 추가에 실패했습니다.', { position: 'top-right', duration: 1000 });
+  }
 };
 
 // 행선택시 등록 폼으로
@@ -295,7 +322,7 @@ const onRowClicked2 = async (event) => {
   await matList();
 };
 
-const gridApiMat = ref(null); // mat 그리드 API 저장용
+const gridApiMat = ref(null);
 
 const onGridReadyMat = (params) => {
   gridApiMat.value = params.api;
@@ -304,33 +331,43 @@ const onGridReadyMat = (params) => {
 // 자재 목록 수량수정 업데이트
 const upMat = async () => {
   const selectedRows = gridApiMat.value.getSelectedRows();
-  if (!selectedRows.length) return alert('수정할 자재 선택');
-
+  if (!selectedRows.length) {
+    $toast.warning('수정할 자재를 선택해주세요.', { position: 'top-right', duration: 1000 });
+    return;
+  }
   const matCodes = selectedRows.map((r) => r.자재코드);
   const qtys = selectedRows.map((r) => r.소요수량);
-
-  await axios.post('http://localhost:3000/bomMatUpdate', {
-    bomCode: form.value.bomCode,
-    matCodes,
-    qtys
-  });
-
-  alert('저장 완료');
-  await matList(); // 목록 재조회
+  try {
+    await axios.post('http://localhost:3000/bomMatUpdate', {
+      bomCode: form.value.bomCode,
+      matCodes,
+      qtys
+    });
+    $toast.success('저장이 완료되었습니다.', { position: 'top-right', duration: 1000 });
+    await matList();
+  } catch (error) {
+    console.error('저장 중 오류가 발생했습니다:', error);
+    $toast.error('저장에 실패했습니다.', { position: 'top-right', duration: 1000 });
+  }
 };
 
 // 자재 목록 선택삭제
-
 const delMat = async () => {
   const selectedRows = gridApiMat.value.getSelectedRows();
   if (selectedRows.length === 0) {
-    alert('삭제할 자재를 선택하세요.');
+    $toast.warning('삭제할 자재를 선택하세요.');
     return;
   }
   const deleteRow = { BOM_CODE: form.value.bomCode, MAT_CODE: selectedRows[0].자재코드 };
   console.log(deleteRow);
-  await axios.post('http://localhost:3000/bomDelete', deleteRow);
-  await matList();
+  try {
+    await axios.post('http://localhost:3000/bomDelete', deleteRow);
+    $toast.success('삭제가 완료되었습니다.', { position: 'top-right', duration: 1000 });
+    await matList();
+  } catch (error) {
+    console.error('삭제 중 오류가 발생했습니다:', error);
+    $toast.error('삭제에 실패했습니다.', { position: 'top-right', duration: 1000 });
+  }
 };
 
 //모달 value들
@@ -349,20 +386,25 @@ const materialRowData = ref([]);
 
 // 모달 조회
 const modalList = async () => {
-  const res = await axios.get('http://localhost:3000/BOMmodalSelect');
-  materialRowData.value = res.data.map((prd) => ({
-    자재코드: prd.MAT_CODE,
-    자재명: prd.MAT_NAME,
-    자재유형: prd.MAT_TYPE,
-    규격: prd.MAT_SIZE,
-    단위: prd.MAT_UNIT
-  }));
+  try {
+    const res = await axios.get('http://localhost:3000/BOMmodalSelect');
+    materialRowData.value = res.data.map((prd) => ({
+      자재코드: prd.MAT_CODE,
+      자재명: prd.MAT_NAME,
+      자재유형: prd.MAT_TYPE,
+      규격: prd.MAT_SIZE,
+      단위: prd.MAT_UNIT
+    }));
+  } catch (error) {
+    console.error('모달 자재 목록을 불러오는 중 오류가 발생했습니다:', error);
+    $toast.error('자재 목록을 불러올 수 없습니다.', { position: 'top-right', duration: 1000 });
+  }
 };
 
 //모달 열때 데이터값 자식컴포넌트로
 const openModal = async (title, rowData, colDefs) => {
   if (!form.value.bomCode) {
-    alert('BOM이 선택되지 않았습니다');
+    $toast.warning('BOM이 선택되지 않았습니다.', { position: 'top-right', duration: 1000 });
     return;
   }
   modalTitle.value = title;
@@ -384,9 +426,15 @@ const modalConfirm = async (selectedRow) => {
     UNIT: selectedRow.단위,
     BOM_VER: form.value.bomVer
   };
-  const res = await axios.post('http://localhost:3000/BOMmodalConfirm', confirmRow);
-  console.log(res);
-  await matList();
+  try {
+    const res = await axios.post('http://localhost:3000/BOMmodalConfirm', confirmRow);
+    console.log(res);
+    $toast.success('자재가 성공적으로 추가되었습니다!', { position: 'top-right', duration: 1000 });
+    await matList();
+  } catch (error) {
+    console.error('자재 추가 중 오류가 발생했습니다:', error);
+    $toast.error('자재 추가에 실패했습니다.', { position: 'top-right', duration: 1000 });
+  }
 };
 </script>
 

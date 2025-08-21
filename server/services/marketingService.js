@@ -122,10 +122,28 @@ const updateReqStatus = async ({ ids = [], status = "" }) => {
   return { ok: true, affected };
 };
 
+
 /* LOT/창고/출하 */
 const lotSelect = async () => mariadb.query("lotSelect");
 const wrNameSelect = async () => mariadb.query("wrNameSelect");
 const shipSelect = async () => mariadb.query("shipSelect");
+=======
+// 출하이력  조회
+const shipSelect = async () => {
+  let list = await mariadb.query("shipSelect");
+  return list;
+};
+
+// 거래처 삭제
+async function deleteAccount(id) {
+  try {
+    const result = await mariadb.query("deleteAccount", [id]);
+    return result;
+  } catch (e) {
+    console.error(e);
+    return { error: e };
+  }
+};
 
 module.exports = {
   addAccount,
@@ -145,4 +163,5 @@ module.exports = {
   reqDetailInsert,
   reqSelect,
   updateReqStatus,
+  deleteAccount,
 };

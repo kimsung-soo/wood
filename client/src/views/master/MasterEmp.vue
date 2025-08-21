@@ -38,7 +38,16 @@
               <v-text-field label="이메일" v-model="form.email" dense outlined />
             </v-col>
             <v-col cols="6">
-              <v-select label="부서명" v-model="form.dept" :items="deptOptions" dense outlined />
+              <v-text-field label="부서명" v-model="form.dept" placeholder="부서명" dense outlined readonly>
+                <template #append-inner>
+                  <i
+                    class="fa-solid fa-magnifying-glass"
+                    style="cursor: pointer; font-size: large; margin-right: 0.5rem"
+                    @click="openModal('부서 조회', materialRowData, materialColDefs)"
+                  ></i>
+                </template>
+              </v-text-field>
+              <MoDal ref="modalRef" :title="modalTitle" :rowData="modalRowData" :colDefs="modalColDefs" @confirm="modalConfirm" />
             </v-col>
             <v-col cols="6">
               <v-select label="직급" v-model="form.auth" :items="authOptions" dense outlined />
@@ -79,7 +88,13 @@ import { themeQuartz } from 'ag-grid-community';
 import { AgGridVue } from 'ag-grid-vue3';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
 import axios from 'axios';
+import MoDal from '../common/NewModal.vue';
+// 토스트
+import { useToast } from 'vue-toast-notification';
+const $toast = useToast();
+//{ position: 'top-right', duration: 1000 }
 
+const searchKeyword = ref([]);
 const page = ref({ title: '사원 관리' });
 const breadcrumbs = shallowRef([
   {
@@ -110,6 +125,7 @@ const form = ref({
 onMounted(() => {
   empList();
   fetchCommonCodes();
+  modalList();
 });
 
 // 사원 행들.
@@ -151,16 +167,11 @@ const empList = async () => {
 };
 
 // 부서 및 직급 데이터 변수
-const deptOptions = ref([]);
 const authOptions = ref([]);
 
 // 공통코드 데이터를 가져오는 함수
 const fetchCommonCodes = async () => {
   try {
-    // 부서 공통코드 API 호출 (예시)
-    const deptRes = await axios.get('http://localhost:3000/commonDept');
-
-    deptOptions.value = deptRes.data.map((item) => item.code_name); // `code_name`을 배열에 담기
     // 직급 공통코드 API 호출 (예시)
     const authRes = await axios.get('http://localhost:3000/commonAuth');
     authOptions.value = authRes.data.map((item) => item.code_name); // `code_name`을 배열에 담기
@@ -170,7 +181,11 @@ const fetchCommonCodes = async () => {
 };
 //사원 검색
 const searchData = async (searchKeyword) => {
-  if (!searchKeyword) return;
+  console.log(searchKeyword);
+  if (!searchKeyword.value) {
+    $toast.error('사원이 입력되지 않았습니다');
+    return;
+  }
   const params = { EMP_NAME: `%${searchKeyword}%` };
   const res = await axios.post('http://localhost:3000/masterEmpName', params);
   empData.value = res.data.map((emp) => ({
@@ -206,11 +221,12 @@ const submitForm = async () => {
     };
     const result = await axios.put('http://localhost:3000/masterEmpUpdate', updateRow);
     console.log(result.config.data);
+    $toast.success(`${form.value.empName}의 정보가 수정되었습니다`, { position: 'top-right', duration: 1000 });
     empList();
   } else {
     // db저장
     if (form.value.endDate) {
-      alert('퇴사일자가 선택되었습니다.');
+      $toast.error('퇴직이 선택되어있습니다.');
       return;
     }
     const newRow = {
@@ -280,6 +296,42 @@ const onRowClicked = (event) => {
   form.value.status = event.data.재직상태;
   form.value.phone = event.data.연락처;
   form.value.endDate = event.data.퇴사일자;
+};
+
+//모달 value들
+const modalRef = ref(null);
+const modalTitle = ref('');
+const modalRowData = ref([]);
+const modalColDefs = ref([]);
+const materialColDefs = [
+  { field: '그룹코드', headerName: '그룹코드', flex: 1 },
+  { field: '부서명', headerName: '부서명', flex: 1 }
+];
+const materialRowData = ref([]);
+
+// 모달 조회
+const modalList = async () => {
+  const res = await axios.get('http://localhost:3000/commonDept');
+  materialRowData.value = res.data.map((prd) => ({
+    그룹코드: prd.group_code,
+    부서명: prd.code_name
+  }));
+  console.log(res);
+};
+
+//모달 열때 데이터값 자식컴포넌트로
+const openModal = async (title, rowData, colDefs) => {
+  modalTitle.value = title;
+  modalRowData.value = rowData;
+  modalColDefs.value = colDefs;
+  if (modalRef.value) {
+    modalRef.value.open();
+  }
+};
+
+// 모달에서 확인시 행추가
+const modalConfirm = async (selectedRow) => {
+  form.value.size = selectedRow.규격;
 };
 </script>
 
