@@ -15,6 +15,9 @@
         자재발주서 조회
       </v-btn>
       <MoDal ref="modalRef" :title="modalTitle" :rowData="modalRowData" :colDefs="modalColDefs" @confirm="onModalConfirm" />
+      <v-col cols="4">
+        <v-select label="창고명" class="select" v-model="form.wrName" :items="wrOptions" dense outlined />
+      </v-col>
     </v-row>
     <v-row class="mb-4">
       <v-col cols="6">
@@ -49,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, reactive } from 'vue';
+import { ref, shallowRef, reactive, onMounted } from 'vue';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
 import { AgGridVue } from 'ag-grid-vue3';
@@ -62,6 +65,21 @@ import { useAuthStore } from '@/stores/auth';
 const authStore = useAuthStore();
 
 const quartz = themeQuartz;
+const wrOptions = ref([]);
+
+onMounted(() => {
+  fetchCommonCodes();
+});
+// 공통코드 데이터를 가져오는 함수
+const fetchCommonCodes = async () => {
+  try {
+    // 부서 공통코드 API 호출 (예시)
+    const authRes = await axios.get('http://localhost:3000/wrNameSelect');
+    wrOptions.value = authRes.data.map((item) => item.WR_NAME); // `code_name`을 배열에 담기
+  } catch (error) {
+    console.error('공통코드 데이터를 불러오는 데 실패했습니다:', error);
+  }
+};
 
 const rowData = ref([]);
 
@@ -80,7 +98,8 @@ const form = reactive({
   issueNumber: '',
   insertDate: new Date().toISOString().substring(0, 10),
   name: '',
-  manager: authStore.user?.name || ''
+  manager: authStore.user?.name || '',
+  wrName: ''
 });
 
 // ----------------- 모달 (기본 정의) -----------------
@@ -229,5 +248,9 @@ const breadcrumbs = shallowRef([
 .button {
   margin-top: 1rem;
   margin-left: 3rem;
+}
+
+.select {
+  margin-left: 5rem;
 }
 </style>
