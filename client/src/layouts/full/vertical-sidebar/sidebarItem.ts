@@ -348,6 +348,7 @@ const sidebarItem: menu[] = [
           },
           {
             title: '기준관리',
+            auth: ['관리자', '부서담당자'],
             to: '/qm/qsmng'
           }
         ]
