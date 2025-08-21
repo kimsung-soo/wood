@@ -55,7 +55,7 @@
     </v-row>
 
     <v-row justify="end">
-      <v-btn color="primary" @click="sign" :loading="loading" :disabled="loading || !canSubmit"> 등록 </v-btn>
+      <v-btn color="primary" @click="sign" :loading="loading" :disabled="loading || !canSubmit">등록</v-btn>
     </v-row>
   </UiParentCard>
 </template>
@@ -66,7 +66,10 @@ import { useRouter } from 'vue-router';
 import axios from 'axios';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
+import { useAuthStore } from '@/stores/auth';
 
+// 로그인 세션 정보
+const authStore = useAuthStore();
 const router = useRouter();
 
 const http = axios.create({
@@ -74,6 +77,7 @@ const http = axios.create({
   headers: { 'Content-Type': 'application/json' }
 });
 
+// 엔드포인트 모음
 const EP = {
   nextId: '/facility/next-id',
   codesFC: '/common/codes/FC',
@@ -83,8 +87,7 @@ const EP = {
 
 const apiTry = async (method, path, data = null) => {
   try {
-    const urlWithApi = '/api' + path;
-    return await http.request({ method, url: urlWithApi, data });
+    return await http.request({ method, url: '/api' + path, data });
   } catch (e) {
     if (e?.response?.status === 404) {
       return await http.request({ method, url: path, data });
@@ -96,17 +99,18 @@ const apiTry = async (method, path, data = null) => {
 const form = reactive({
   code: '',
   name: '',
-  type: '',
+  type: '', // FAC_TYPE: '01', '02', ...
   useYn: '사용',
   maker: '',
   makeDate: '',
   installDate: '',
   checkCycle: '',
-  manager: ''
+  manager: authStore.user?.name || ''
 });
-const typeItems = ref([]);
+const typeItems = ref([]); // [{ code:'01', code_name:'재단 설비', sort_order:1 }, ...]
 const loading = ref(false);
 
+// 필수값
 const canSubmit = computed(() => !!form.name && !!form.type);
 
 const toNull = (v) => (v === '' || v === undefined ? null : v);
@@ -116,22 +120,44 @@ const toIntOrNull = (v) => {
   return Number.isFinite(n) ? n : null;
 };
 
-/* ========= 초기 로딩 ========= */
+// '01' -> 1 -> '001'
+const pad3 = (n) => String(n).padStart(3, '0');
+
+// FAC_TYPE('01','02',...) → PR_ID('PRC-001','PRC-002',...) 변환
+const facTypeToPrId = (facType) => {
+  const m = String(facType ?? '').match(/\d+/); // '01'에서 숫자만 추출
+  const num = Number(m?.[0]);
+  if (!Number.isFinite(num)) return null;
+  return `PRC-${pad3(num)}`;
+};
+
+// 신규 설비코드, 유형코드 목록
 onMounted(async () => {
   try {
     const [idRes, codeRes] = await Promise.all([apiTry('get', EP.nextId), apiTry('get', EP.codesFC)]);
     form.code = idRes?.data?.FAC_ID || '';
-    typeItems.value = Array.isArray(codeRes?.data) ? codeRes.data : [];
+    // 서버 응답 정렬 보정(옵션)
+    const rows = Array.isArray(codeRes?.data) ? codeRes.data : [];
+    typeItems.value = rows.sort((a, b) => {
+      const ao = Number.isFinite(Number(a?.sort_order)) ? Number(a.sort_order) : 9999;
+      const bo = Number.isFinite(Number(b?.sort_order)) ? Number(b.sort_order) : 9999;
+      if (ao !== bo) return ao - bo;
+      return String(a?.code_name || '').localeCompare(String(b?.code_name || ''));
+    });
   } catch (e) {
     console.error(e);
     alert('초기 로딩 실패: ' + (e?.response?.data?.error || e?.message));
   }
 });
 
-/* ========= 등록 ========= */
+// 등록 처리 (FAC_TYPE 기준 PR_ID 동시 저장)
 const sign = async () => {
-  if (!canSubmit.value) {
-    alert('(설비명/설비유형)을 확인하세요.');
+  if (!canSubmit.value) return alert('(설비명/설비유형)을 확인하세요.');
+
+  // ★ 핵심: FAC_TYPE → PR_ID 매핑
+  const prId = facTypeToPrId(form.type);
+  if (!prId) {
+    alert('공정(PR_ID) 매핑 실패: 설비유형을 다시 선택하세요.');
     return;
   }
 
@@ -143,6 +169,7 @@ const sign = async () => {
     FAC_MDATE: toNull(form.makeDate),
     FAC_IDATE: toNull(form.installDate),
     FAC_CHECKDAY: toIntOrNull(form.checkCycle),
+    PR_ID: prId, // ← PRC-001, PRC-002, ...
     MANAGER: toNull(form.manager)
   };
 
@@ -151,22 +178,15 @@ const sign = async () => {
 
     // 1) 등록
     const res = await apiTry('post', EP.insert, payload);
-    if (!res?.data?.ok) throw new Error('등록 실패');
-
-    const listRes = await apiTry('get', EP.list);
-    const rows = Array.isArray(listRes?.data) ? listRes.data : [];
-    const created = rows.find((r) => (r.FAC_ID ?? '') === (form.code ?? ''));
-
-    const prId = created?.PR_ID || '';
+    const newId = res?.data?.FAC_ID;
+    if (!newId) throw new Error(res?.data?.error || '등록 실패');
+    form.code = newId;
 
     alert('설비 등록 완료!');
 
+    // 2) 목록 화면으로 이동 (proc에 같은 PR_ID로 필터)
     const LIST_ROUTE = '/utils/List';
-    if (prId) {
-      router.push({ path: LIST_ROUTE, query: { proc: prId } });
-    } else {
-      router.push({ path: LIST_ROUTE });
-    }
+    router.push({ path: LIST_ROUTE, query: { proc: prId } });
   } catch (err) {
     console.error(err);
     alert(err?.response?.data?.error || err?.message || '등록 실패');

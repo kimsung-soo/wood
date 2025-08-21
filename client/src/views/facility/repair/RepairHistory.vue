@@ -35,41 +35,35 @@ import { ref, shallowRef, computed, onMounted } from 'vue';
 import axios from 'axios';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
-
 import { AgGridVue } from 'ag-grid-vue3';
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community';
+
+// ag-grid 등록
 ModuleRegistry.registerModules([AllCommunityModule]);
 const quartz = themeQuartz;
 
-/* ===== 헤더 ===== */
-const page = ref({ title: '설비 수리 관리' });
-const breadcrumbs = shallowRef([
-  { title: '설비', disabled: true, href: '#' },
-  { title: '수리 내역', disabled: false, href: '#' }
-]);
-
-/* ===== API base ===== */
+// API base
 const apiBase = 'http://localhost:3000';
 
-/* ===== 컬럼 ===== */
+// 컬럼 정의
 const columnDefs = ref([
-  { headerName: '설비코드', field: '설비코드', flex: 1 },
-  { headerName: '설비명', field: '설비명', flex: 1 },
-  { headerName: '설비유형', field: '설비유형', flex: 1 },
-  { headerName: '고장유형', field: '고장유형', flex: 1 },
-  { headerName: '비가동시작일', field: '비가동시작일', flex: 1.5 },
-  { headerName: '수리완료일', field: '수리완료일', flex: 1.5 },
-  { headerName: '수리내역', field: '수리내역', flex: 1.5 },
-  { headerName: '담당자', field: '담당자', flex: 1 },
-  { headerName: '비고', field: '비고', flex: 2 }
+  { field: '설비코드', flex: 1 },
+  { field: '설비명', flex: 1 },
+  { field: '설비유형', flex: 1 },
+  { field: '고장유형', flex: 1 },
+  { field: '비가동시작일', flex: 1.5 },
+  { field: '수리완료일', flex: 1.5 },
+  { field: '수리내역', flex: 1.5 },
+  { field: '담당자', flex: 1 },
+  { field: '비고', flex: 2 }
 ]);
 const defaultColDef = { editable: false, sortable: true, resizable: true, suppressMenu: true };
 
-/* ===== 검색 ===== */
+// 검색 키워드
 const productKeyword = ref('');
 const rawItems = ref([]);
 
-/* ===== 날짜 포맷 ===== */
+// 날짜 포맷
 function fmt(dt) {
   if (!dt) return '';
   const d = new Date(dt);
@@ -78,9 +72,9 @@ function fmt(dt) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-/* ===== 코드 라벨 맵 (FC/RR) ===== */
-let fcMap = new Map(); // 설비유형
-let rrMap = new Map(); // 고장유형
+// 코드 라벨 매핑
+let fcMap = new Map();
+let rrMap = new Map();
 const preloadCodeMaps = async () => {
   const [fcRes, rrRes] = await Promise.all([axios.get(`${apiBase}/common/codes/FC`), axios.get(`${apiBase}/common/codes/RR`)]);
   const toMap = (rows) => {
@@ -92,25 +86,12 @@ const preloadCodeMaps = async () => {
   rrMap = toMap(rrRes.data);
 };
 
-/* ===== 백엔드 호출 ===== */
-const fetchRepairs = async () => {
-  const { data } = await axios.get(`${apiBase}/facility/repairs`);
-  return Array.isArray(data) ? data : [];
-};
-const fetchFacilities = async () => {
-  const { data } = await axios.get(`${apiBase}/facility`);
-  return Array.isArray(data) ? data : [];
-};
-const fetchStatusList = async () => {
-  const { data } = await axios.get(`${apiBase}/facility/status`);
-  return Array.isArray(data) ? data : [];
-};
+// API 호출
+const fetchRepairs = async () => (await axios.get(`${apiBase}/facility/repairs`)).data || [];
+const fetchFacilities = async () => (await axios.get(`${apiBase}/facility`)).data || [];
+const fetchStatusList = async () => (await axios.get(`${apiBase}/facility/status`)).data || [];
 
-/* ===== 조합: repairs + facilities + status =====
-   - 설비명/유형: FACILITY
-   - 비가동 시작/완료: FACILITY_STATUS (FS_ID 매칭)
-   - 고장유형 라벨: RR 맵 (FR_TYPE 우선, 없으면 상태의 FS_TYPE)
-================================================= */
+// 수리내역
 const loadRepairs = async () => {
   try {
     await preloadCodeMaps();
@@ -133,8 +114,8 @@ const loadRepairs = async () => {
         설비명: f.FAC_NAME ?? '',
         설비유형: facTypeLabel,
         고장유형: rrLabel,
-        비가동시작일: fmt(s.DOWN_STARTDAY ?? r.REPAIR_STARTDAY),
-        수리완료일: fmt(s.DOWN_ENDDAY ?? r.REPAIR_ENDDAY),
+        비가동시작일: fmt(r.FR_STARTDAY),
+        수리완료일: fmt(r.FR_ENDDAY),
         수리내역: r.FR_CONTENT ?? '',
         담당자: r.MANAGER ?? f.MANAGER ?? '',
         비고: r.FR_NOTE ?? ''
@@ -147,7 +128,7 @@ const loadRepairs = async () => {
 };
 onMounted(loadRepairs);
 
-/* ===== 필터 ===== */
+// 검색 필터
 const filteredItems = computed(() => {
   const kw = (productKeyword.value || '').trim().toLowerCase();
   if (!kw) return rawItems.value;
@@ -157,4 +138,10 @@ const filteredItems = computed(() => {
     return code.includes(kw) || name.includes(kw);
   });
 });
+
+const page = ref({ title: '설비 수리 관리' });
+const breadcrumbs = shallowRef([
+  { title: '설비', disabled: true, href: '#' },
+  { title: '수리 내역', disabled: false, href: '#' }
+]);
 </script>
