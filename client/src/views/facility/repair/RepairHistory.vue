@@ -15,6 +15,7 @@
       </v-col>
     </v-row>
 
+    <!-- AG Grid -->
     <ag-grid-vue
       class="ag-theme-quartz grid-clean"
       style="height: 420px"
@@ -32,7 +33,6 @@
 
 <script setup>
 import { ref, shallowRef, computed, onMounted } from 'vue';
-import axios from 'axios';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
 
@@ -41,17 +41,10 @@ import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-communi
 ModuleRegistry.registerModules([AllCommunityModule]);
 const quartz = themeQuartz;
 
-/* ===== 헤더 ===== */
-const page = ref({ title: '설비 수리 관리' });
-const breadcrumbs = shallowRef([
-  { title: '설비', disabled: true, href: '#' },
-  { title: '수리 내역', disabled: false, href: '#' }
-]);
-
-/* ===== API base ===== */
+import axios from 'axios';
 const apiBase = 'http://localhost:3000';
 
-/* ===== 컬럼 ===== */
+/* 컬럼 정의 */
 const columnDefs = ref([
   { headerName: '설비코드', field: '설비코드', flex: 1 },
   { headerName: '설비명', field: '설비명', flex: 1 },
@@ -65,11 +58,11 @@ const columnDefs = ref([
 ]);
 const defaultColDef = { editable: false, sortable: true, resizable: true, suppressMenu: true };
 
-/* ===== 검색 ===== */
+// 검색어  데이터
 const productKeyword = ref('');
 const rawItems = ref([]);
 
-/* ===== 날짜 포맷 ===== */
+// 날짜
 function fmt(dt) {
   if (!dt) return '';
   const d = new Date(dt);
@@ -78,68 +71,22 @@ function fmt(dt) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-/* ===== 코드 라벨 맵 (FC/RR) ===== */
-let fcMap = new Map(); // 설비유형
-let rrMap = new Map(); // 고장유형
-const preloadCodeMaps = async () => {
-  const [fcRes, rrRes] = await Promise.all([axios.get(`${apiBase}/common/codes/FC`), axios.get(`${apiBase}/common/codes/RR`)]);
-  const toMap = (rows) => {
-    const m = new Map();
-    for (const r of rows || []) m.set(String(r.code ?? r.CODE), r.code_name ?? r.CODE_NAME);
-    return m;
-  };
-  fcMap = toMap(fcRes.data);
-  rrMap = toMap(rrRes.data);
-};
-
-/* ===== 백엔드 호출 ===== */
-const fetchRepairs = async () => {
-  const { data } = await axios.get(`${apiBase}/facility/repairs`);
-  return Array.isArray(data) ? data : [];
-};
-const fetchFacilities = async () => {
-  const { data } = await axios.get(`${apiBase}/facility`);
-  return Array.isArray(data) ? data : [];
-};
-const fetchStatusList = async () => {
-  const { data } = await axios.get(`${apiBase}/facility/status`);
-  return Array.isArray(data) ? data : [];
-};
-
-/* ===== 조합: repairs + facilities + status =====
-   - 설비명/유형: FACILITY
-   - 비가동 시작/완료: FACILITY_STATUS (FS_ID 매칭)
-   - 고장유형 라벨: RR 맵 (FR_TYPE 우선, 없으면 상태의 FS_TYPE)
-================================================= */
+/* 최초 로드 */
 const loadRepairs = async () => {
   try {
-    await preloadCodeMaps();
-
-    const [repairs, facilities, statuses] = await Promise.all([fetchRepairs(), fetchFacilities(), fetchStatusList()]);
-
-    const facMap = new Map(facilities.map((f) => [f.FAC_ID, f]));
-    const statusByFsId = new Map(statuses.map((s) => [s.FS_ID, s]));
-
-    rawItems.value = repairs.map((r) => {
-      const f = facMap.get(r.FAC_ID) || {};
-      const s = statusByFsId.get(r.FS_ID) || {};
-
-      const facTypeLabel = f.FAC_TYPE ? fcMap.get(String(f.FAC_TYPE)) || f.FAC_TYPE : f.FAC_TYPE_NM || '';
-      const rrCode = r.FR_TYPE ?? s.FS_TYPE ?? null;
-      const rrLabel = rrCode ? rrMap.get(String(rrCode)) || rrCode : '';
-
-      return {
-        설비코드: r.FAC_ID ?? '',
-        설비명: f.FAC_NAME ?? '',
-        설비유형: facTypeLabel,
-        고장유형: rrLabel,
-        비가동시작일: fmt(s.DOWN_STARTDAY ?? r.REPAIR_STARTDAY),
-        수리완료일: fmt(s.DOWN_ENDDAY ?? r.REPAIR_ENDDAY),
-        수리내역: r.FR_CONTENT ?? '',
-        담당자: r.MANAGER ?? f.MANAGER ?? '',
-        비고: r.FR_NOTE ?? ''
-      };
-    });
+    const { data } = await axios.get(`${apiBase}/facility/repairs`);
+    const arr = Array.isArray(data) ? data : [];
+    rawItems.value = arr.map((r) => ({
+      설비코드: r.FAC_ID ?? '',
+      설비명: r.FAC_NAME ?? '',
+      설비유형: r.FAC_TYPE ?? '',
+      고장유형: r.FR_TYPE_NM ?? '',
+      비가동시작일: fmt(r.REPAIR_STARTDAY),
+      수리완료일: fmt(r.REPAIR_ENDDAY),
+      수리내역: r.FR_CONTENT ?? '',
+      담당자: r.MANAGER ?? '',
+      비고: r.FR_NOTE ?? ''
+    }));
   } catch (e) {
     console.error('loadRepairs error', e);
     rawItems.value = [];
@@ -147,7 +94,7 @@ const loadRepairs = async () => {
 };
 onMounted(loadRepairs);
 
-/* ===== 필터 ===== */
+//필터링
 const filteredItems = computed(() => {
   const kw = (productKeyword.value || '').trim().toLowerCase();
   if (!kw) return rawItems.value;
@@ -157,4 +104,10 @@ const filteredItems = computed(() => {
     return code.includes(kw) || name.includes(kw);
   });
 });
+
+const page = ref({ title: '설비 수리 관리' });
+const breadcrumbs = shallowRef([
+  { title: '설비', disabled: true, href: '#' },
+  { title: '수리 내역', disabled: false, href: '#' }
+]);
 </script>

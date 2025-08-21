@@ -65,40 +65,26 @@
 </template>
 
 <script setup>
-/* 기본 */
-import { ref, reactive, shallowRef } from 'vue';
-import axios from 'axios';
+import { ref, reactive, shallowRef, onMounted } from 'vue';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
-import MoDal from '@/views/common/NewModal.vue';
-
-/* ag-grid */
 import { AgGridVue } from 'ag-grid-vue3';
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community';
+import axios from 'axios';
 ModuleRegistry.registerModules([AllCommunityModule]);
 const quartz = themeQuartz;
 
-/* 헤더 */
 const page = ref({ title: '설비 점검관리' });
 const breadcrumbs = shallowRef([
   { title: '설비', disabled: true, href: '#' },
   { title: '점검관리', disabled: false, href: '#' }
 ]);
 
-/* API */
-const apiBase = 'http://localhost:3000';
-const INSPECTION_OPEN_API = `${apiBase}/facility/inspections/open`;
-const INSPECTION_COMPLETE_API = `${apiBase}/facility/inspection/complete`;
-const STATUS_CURRENT_API = (facId) => `${apiBase}/facility/status/current/${facId}`;
-const PROCESS_API = `${apiBase}/process`;
-
-/* 공정 필터 */
 const processCode = ref('');
 const gridApi = ref(null);
-const onGridReady = async (e) => {
-  gridApi.value = e.api;
-  await init();
-};
+const onGridReady = (e) => (gridApi.value = e.api);
+
+/** 공정코드 필터 */
 const applyProcessFilter = (procCode) => {
   if (!gridApi.value) return;
   gridApi.value.setFilterModel({
@@ -107,16 +93,19 @@ const applyProcessFilter = (procCode) => {
   gridApi.value.onFilterChanged();
 };
 
-/* 컬럼 */
+/* 컬럼 정의 */
 const columnDefs = ref([
-  { field: '공정코드', hide: true, filter: 'agTextColumnFilter' },
   { field: '설비코드', flex: 1 },
   { field: '설비명', flex: 1 },
   { field: '설비유형', flex: 1 },
   {
     field: '설비상태',
     flex: 1,
-    cellStyle: (p) => (p.value === '비가동' ? { color: 'red', fontWeight: 'bold' } : { color: 'blue', fontWeight: 'bold' })
+    cellStyle: (p) => {
+      if (p.value === '가동') return { color: 'blue', fontWeight: 'bold' };
+      if (p.value === '비가동') return { color: 'red', fontWeight: 'bold' };
+      return null;
+    }
   },
   { field: '비가동사유', flex: 1 },
   { field: '비가동시작시간', flex: 1 },
@@ -126,66 +115,35 @@ const columnDefs = ref([
 ]);
 const defaultColDef = { editable: false, sortable: true, resizable: true };
 
-/* ===== 코드/설비/점검 데이터 합치기 ===== */
+/* ───────── API ───────── */
+const apiBase = 'http://localhost:3000';
+const INSPECTION_OPEN_API = `${apiBase}/facility/inspections/open`;
+const INSPECTION_COMPLETE_API = `${apiBase}/facility/inspection/complete`;
+const STATUS_CURRENT_API = (facId) => `${apiBase}/facility/status/current/${facId}`;
+const PROCESS_API = `${apiBase}/process`;
 
-/** FC 코드 라벨 맵 */
-let fcMap = new Map();
-const preloadFCMap = async () => {
-  const { data } = await axios.get(`${apiBase}/common/codes/FC`);
-  const m = new Map();
-  for (const r of data || []) m.set(String(r.code ?? r.CODE), r.code_name ?? r.CODE_NAME);
-  fcMap = m;
-};
-
-/** 설비 메타 */
-const fetchFacilities = async () => {
-  const { data } = await axios.get(`${apiBase}/facility`);
-  return Array.isArray(data) ? data : [];
-};
-
-/** 열려있는 점검 상태 */
-const fetchOpenInspections = async () => {
-  const { data } = await axios.get(INSPECTION_OPEN_API);
-  return Array.isArray(data) ? data : [];
-};
-
+/* 서버 → 그리드 매핑 */
 const rows = ref([]);
+const mapOpenInspection = (r) => ({
+  공정코드: r.PR_ID ?? '',
+  설비코드: r.FAC_ID,
+  설비명: r.FAC_NAME,
+  설비유형: r.FAC_TYPE_NM ?? r.FAC_TYPE ?? '',
+  설비상태: '비가동',
+  비가동사유: r.FS_REASON ?? '',
+  비가동시작시간: r.DOWN_STARTDAY ? String(r.DOWN_STARTDAY).slice(0, 19).replace('T', ' ') : '',
+  적합여부: '-',
+  다음점검일: r.FS_NEXTDAY ? String(r.FS_NEXTDAY).slice(0, 10) : '-',
+  담당자: r.MANAGER ?? ''
+});
 
-/** 날짜 포맷 */
-const fmt = (v) => {
-  if (!v) return '';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return String(v);
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-};
+// const loadOpenInspections = async () => {
+//   const { data } = await axios.get(INSPECTION_OPEN_API);
+//   rows.value = (Array.isArray(data) ? data : []).map(mapOpenInspection);
+//   if (processCode.value) applyProcessFilter(processCode.value);
+// };
 
-/** 합치기 */
-const init = async () => {
-  const [, facilities, openList] = await Promise.all([preloadFCMap(), fetchFacilities(), fetchOpenInspections()]);
-
-  const facMap = new Map(facilities.map((f) => [f.FAC_ID, f]));
-
-  rows.value = (openList || []).map((s) => {
-    const f = facMap.get(s.FAC_ID) || {};
-    const facTypeLabel = f.FAC_TYPE ? fcMap.get(String(f.FAC_TYPE)) || f.FAC_TYPE : f.FAC_TYPE_NM || '-';
-
-    return {
-      공정코드: f.PR_ID || '',
-      설비코드: s.FAC_ID,
-      설비명: f.FAC_NAME || '',
-      설비유형: facTypeLabel,
-      설비상태: '비가동',
-      비가동사유: s.FS_REASON || '점검',
-      비가동시작시간: s.DOWN_STARTDAY ? fmt(s.DOWN_STARTDAY) : s.FS_CHECKDAY ? fmt(s.FS_CHECKDAY) : '',
-      적합여부: '-', // 완료 전이므로 표시 X
-      다음점검일: s.FS_NEXTDAY ? String(s.FS_NEXTDAY).slice(0, 10) : '-',
-      담당자: s.MANAGER ?? f.MANAGER ?? '-'
-    };
-  });
-
-  if (processCode.value) applyProcessFilter(processCode.value);
-};
+onMounted(loadOpenInspections);
 
 /* 상세 폼 */
 const form = reactive({
@@ -215,7 +173,7 @@ const onPick = (e) => {
   form.ngReason = '';
 };
 
-/* 점검완료 */
+//점검완료
 const completeInspection = async () => {
   if (!form.code) return alert('설비를 먼저 선택하세요.');
   if (!form.fit) return alert('적합 여부를 선택하세요.');
@@ -224,12 +182,12 @@ const completeInspection = async () => {
   form.doneAt = now();
 
   try {
-    // 현재 상태 FS_ID 얻기
-    const { data: cur } = await axios.get(STATUS_CURRENT_API(form.code));
+    // 1) 현재 상태
+    const { data: cur } = await axios.get(STATUS_CURRENT_API(form.code)); // /facility/status/current/:facId
     const FS_ID = Array.isArray(cur) ? cur[0]?.FS_ID : cur?.FS_ID;
-    if (!FS_ID) return alert('상태를 찾을 수 없습니다.');
+    if (!FS_ID) return alert('상태(FS_ID)를 찾을 수 없습니다.');
 
-    // 점검완료 저장(+ 상태 종료)
+    // 2) 점검완료 저장
     await axios.post(INSPECTION_COMPLETE_API, {
       FS_ID,
       FAC_ID: form.code,
@@ -241,12 +199,11 @@ const completeInspection = async () => {
       manager: form.manager || null
     });
 
-    // 목록 갱신
-    await init();
+    // 3) 목록 갱신
+    await loadOpenInspections();
     gridApi.value?.refreshCells({ force: true });
     alert('점검이 완료되었습니다.');
-
-    // 폼 초기화
+    // 선택 폼 초기화
     Object.assign(form, {
       code: '',
       name: '',
@@ -265,14 +222,14 @@ const completeInspection = async () => {
   }
 };
 
-/* 유틸 */
 function now() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-/* 공정 모달 */
+/* 공정 조회 모달 */
+import MoDal from '@/views/common/NewModal.vue';
 const modalRef = ref(null);
 const modalTitle = ref('');
 const modalRowData = ref([]);
@@ -288,7 +245,7 @@ const modalColDefs = ref([
 const mapProcess = (r) => ({
   공정코드: r.PR_ID ?? r.PRC_CODE ?? '',
   공정명: r.PRC_NAME ?? '',
-  설비유형: r.FAC_TYPE ? fcMap.get(String(r.FAC_TYPE)) || r.FAC_TYPE : '-', // FC 라벨
+  설비유형: r.FAC_TYPE ?? '',
   등록일자: typeof r.PRC_RDATE === 'string' ? r.PRC_RDATE.slice(0, 10) : '',
   작성자: r.PRC_WRITER ?? '',
   비고: r.PRC_NOTE ?? ''

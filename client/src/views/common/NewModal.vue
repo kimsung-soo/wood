@@ -3,11 +3,6 @@
     <v-card>
       <v-card-title class="headline">{{ title }}</v-card-title>
       <v-card-text>
-        <div class="d-flex align-center mb-4">
-          <v-text-field label="검색어" v-model="searchKeyword" dense outlined hide-details class="mr-2"></v-text-field>
-          <v-btn color="darkText" @click="searchData">검색</v-btn>
-        </div>
-
         <ag-grid-vue
           :rowData="internalRowData"
           :columnDefs="internalColDefs"
@@ -36,7 +31,6 @@ import { themeQuartz } from 'ag-grid-community';
 
 const quartz = themeQuartz;
 const dialog = ref(false);
-const searchKeyword = ref('');
 
 const props = defineProps({
   title: String,
@@ -89,9 +83,6 @@ const confirm = () => {
   }
   close();
 };
-
-// 검색
-const searchData = () => {};
 
 defineExpose({
   open
