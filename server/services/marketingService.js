@@ -1,5 +1,4 @@
-// marketingService.js
-
+// server/services/marketingService.js
 const mariadb = require("../database/mapper.js");
 
 // 거래처 등록
@@ -20,7 +19,6 @@ const addAccount = async (data) => {
   }
 };
 
-// 거래처 목록 조회
 const getAccountList = async () => {
   try {
     const result = await mariadb.query("selectAccountList");
@@ -31,7 +29,6 @@ const getAccountList = async () => {
   }
 };
 
-// 제품 목록 조회
 const getItemList = async () => {
   try {
     const result = await mariadb.query("selectItemList");
@@ -42,7 +39,6 @@ const getItemList = async () => {
   }
 };
 
-// 주문 등록
 const addOrder = async (data) => {
   const params = [
     data.cusId,
@@ -50,7 +46,6 @@ const addOrder = async (data) => {
     data.reqNote,
     JSON.stringify(data.items),
   ];
-
   try {
     const result = await mariadb.query("insertOrder", params);
     return result;
@@ -60,25 +55,14 @@ const addOrder = async (data) => {
   }
 };
 
-// 태완 -입고 조회
-const inboundList = async () => {
-  let list = await mariadb.query("inboundList");
-  return list;
-};
+// 태완 -입고
+const inboundList = async () => mariadb.query("inboundList");
+const getNextLotNo = async () => mariadb.query("getNextLotNo");
 
-//등록전 lot번호 생성
-const getNextLotNo = async () => {
-  let result = await mariadb.query("getNextLotNo");
-  return result;
-};
-
-// 입고 - 등록
 const inboundInsert = async (rows) => {
   const lot = await getNextLotNo();
   const lotNo = lot[0]["generate_lot_number()"];
-  console.log("lot번호 :", lot);
   for (const row of rows) {
-    console.log(row);
     const params = [
       row.RECEIVED_QTY,
       row.PRD_CERT_ID,
@@ -92,76 +76,63 @@ const inboundInsert = async (rows) => {
   return { success: true };
 };
 
-// 검색
 const inboundSearch = async (data) => {
-  console.log(data);
   const params = [data.startDate, data.endDate];
   let result = await mariadb.query("inboundSearch", params);
   return result;
 };
 
-// 주문서 거래처 조회 모달
+/* 주문서 거래처/제품 모달 */
+const reqCusModal = async () => mariadb.query("reqCusModal");
+const reqPrdModal = async () => mariadb.query("reqPrdModal");
 
-const reqCusModal = async () => {
-  let list = await mariadb.query("reqCusModal");
-  return list;
-};
-
-// 주문서 등록 제품 조회 모달
-const reqPrdModal = async () => {
-  let list = await mariadb.query("reqPrdModal");
-  return list;
-};
-
-// 주문서 등록 (주문서테이블)
+/* 주문서 등록 (헤더) — REQ_ID 발번 후 저장 */
 const reqInsert = async (rows) => {
-  const params = [rows.CUS_ID, rows.REQ_DATE, rows.REQ_DDAY, rows.WRITER];
+  const idRow = await mariadb.query("getNextPrd");
+  const ID = idRow[0]["GetNextREQ_ID()"];
+  const params = [ID, rows.CUS_ID, rows.REQ_DATE, rows.REQ_DDAY, rows.WRITER];
   await mariadb.query("reqInsert", params);
-  return { success: true };
+  return { success: true, reqId: ID };
 };
 
-// 주문서등록 (상세테이블)
-const reqDetailInsert = async (rows) => {
-  const reqId = await mariadb.query("getNextPrd");
-  const ID = reqId[0]["GetNextREQ_ID()"];
+/* 주문서 등록 (상세) — 헤더에서 받은 reqId 사용 */
+const reqDetailInsert = async (payload) => {
+  const { reqId, rows } = payload;
   for (const row of rows) {
-    console.log(row);
-    const params = [ID, row.REQ_QTY, row.PRD_CODE];
+    const params = [reqId, row.REQ_QTY, row.PRD_CODE];
     await mariadb.query("reqDetailInsert", params);
   }
   return { success: true };
 };
-// 주문서 조회
-const reqSelect = async () => {
-  let list = await mariadb.query("reqSelect");
-  return list;
+
+/* 주문서 조회 */
+const reqSelect = async () => mariadb.query("reqSelect");
+
+// 주문서 상태값 변경
+const updateReqStatus = async ({ ids = [], status = "" }) => {
+  const allow = ["대기", "진행중", "완료", "취소"];
+  if (!allow.includes(status))
+    return { ok: false, msg: "허용되지 않는 상태값" };
+  const csv = (ids || []).map(String).filter(Boolean).join(",");
+  if (!csv) return { ok: false, affected: 0, msg: "ID 없음" };
+  const r = await mariadb.query("reqUpdateStatusByIdsCsv", [status, csv]);
+  const affected = Array.isArray(r?.[0])
+    ? r[0][0]?.affected || 0
+    : r?.affectedRows || r?.[0]?.affected || 0;
+  return { ok: true, affected };
 };
 
-// LOT 조회
-const lotSelect = async () => {
-  let list = await mariadb.query("lotSelect");
-  return list;
-};
+/* LOT/창고/출하 */
+const lotSelect = async () => mariadb.query("lotSelect");
+const wrNameSelect = async () => mariadb.query("wrNameSelect");
+const shipSelect = async () => mariadb.query("shipSelect");
 
-// 출하지시서 - 창고 조회
-const wrNameSelect = async () => {
-  let list = await mariadb.query("wrNameSelect");
-  return list;
-};
-
-// 출하이력  조회
-const shipSelect = async () => {
-  let list = await mariadb.query("shipSelect");
-  return list;
-};
 module.exports = {
   addAccount,
   inboundList,
   inboundInsert,
-
   getNextLotNo,
   inboundSearch,
-
   getAccountList,
   getItemList,
   addOrder,
@@ -173,4 +144,5 @@ module.exports = {
   reqInsert,
   reqDetailInsert,
   reqSelect,
+  updateReqStatus,
 };

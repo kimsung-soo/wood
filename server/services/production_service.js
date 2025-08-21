@@ -30,7 +30,7 @@ async function getProducts({ kw = "", page = 1, size = 10 }) {
     offset,
   ]);
   const cnt = await mapper.query("production.countProducts", [kw, like, like]);
-  return { rows, total: cnt[0]?.cnt || 0 };
+  return { ok: true, rows, total: cnt[0]?.cnt || 0 };
 }
 
 async function getRequests({ kw = "", page = 1, size = 10 }) {
@@ -55,7 +55,9 @@ async function getRequests({ kw = "", page = 1, size = 10 }) {
 
 async function savePlan(body) {
   const f = body?.form || {};
-  const selected = body?.selectedReqs || [];
+  const linkedOrderIds = (body?.linkedOrderIds || [])
+    .map((v) => String(v).trim())
+    .filter(Boolean);
 
   if (!f.issueNumber || !f.orderDate || !f.productCode) {
     throw new Error("필수 값 누락(계획번호/계획일자/제품코드)");
@@ -84,12 +86,9 @@ async function savePlan(body) {
   const planId = planRow?.[0]?.id;
   if (!planId) throw new Error("계획 저장 실패(planId 없음)");
 
-  for (const r of selected) {
-    await mapper.query("production.insertPlanItem", [
-      planId,
-      r.id,
-      Number(r.totalQty || 0),
-    ]);
+  if (linkedOrderIds.length) {
+    const csv = linkedOrderIds.join(",");
+    await mapper.query("orders.updateStatusByIdsCsv", ["진행중", csv]);
   }
 
   return { planId, planNo: f.issueNumber, ok: true };
@@ -167,7 +166,7 @@ async function getBomForProduct(productCode = "") {
 }
 
 /* =========================
- * 자재 현황 (BOM 기반, 가용재고 사용)
+ * 자재 현황
  * ========================= */
 async function getMaterialStatus({ productCode = "", targetQty = 1 }) {
   const code = String(productCode || "").trim();
@@ -220,10 +219,8 @@ async function getMaterialStatus({ productCode = "", targetQty = 1 }) {
 }
 
 /* =========================
- * 작업지시(Work Orders)
+ * 작업지시
  * ========================= */
-
-/* 작업지시 생성 + 자재예약 */
 async function createWorkOrder(body = {}) {
   const f = body?.form || {};
   const selectedPlanIds = body?.selectedPlanIds || [];
@@ -251,7 +248,6 @@ async function createWorkOrder(body = {}) {
   const prdType =
     f.productType || (await resolveProductType(f.productCode, "완제품"));
 
-  // 1) 지시 생성
   const res = await mapper.query("workorder.sp.create", [
     f.issueNumber,
     orderName || null,
@@ -265,22 +261,17 @@ async function createWorkOrder(body = {}) {
     f.memo || null,
   ]);
   const woId = Array.isArray(res?.[0]) ? res[0][0]?.id : res?.[0]?.id;
-
   if (!woId) return { ok: false, msg: "지시 저장 실패" };
 
-  // 2) product_type 보정 + 상태행 생성
   await mapper.query("workorder.updateProductType", [prdType, Number(woId)]);
   await mapper.query("exec.initStatesForWo", [Number(woId), prdType]);
 
-  // 3) 자재 예약 가능 여부 확인
   const mat = await getMaterialStatus({
     productCode: f.productCode,
     targetQty: Number(f.targetQty || 0),
   });
   const shortages = (mat.rows || []).filter((r) => Number(r.shortage || 0) > 0);
-
   if (shortages.length) {
-    // 💥 예약 불가 → 생성 취소(지시 삭제)
     await mapper.query("workorder.sp.delete", [String(woId)]);
     return {
       ok: false,
@@ -289,7 +280,6 @@ async function createWorkOrder(body = {}) {
     };
   }
 
-  // 4) 예약 생성
   for (const r of mat.rows || []) {
     if (Number(r.requiredQty || 0) <= 0) continue;
     await mapper.query("materials.reserveInsert", [
@@ -304,13 +294,11 @@ async function createWorkOrder(body = {}) {
   return { ok: true, woId, woNo: f.issueNumber };
 }
 
-/* 작업지시 목록 */
 async function getWorkOrders({ kw = "", page = 1, size = 10 }) {
   const { limit, offset } = pageParam({ page, size });
   const r1 = await mapper.query("workorder.sp.select", [kw, limit, offset]);
   const rows = Array.isArray(r1?.[0]) ? r1[0] : Array.isArray(r1) ? r1 : [];
 
-  // productType 보정
   const missingCodes = rows
     .filter((x) => !x.productType && x.productCode)
     .map((x) => x.productCode);
@@ -330,7 +318,6 @@ async function getWorkOrders({ kw = "", page = 1, size = 10 }) {
   return { rows, total: Number(cntRow?.cnt || 0), ok: true };
 }
 
-/* 작업지시 수정 */
 async function updateWorkOrder(id, body = {}) {
   const f = body || {};
   const res = await mapper.query("workorder.sp.update", [
@@ -350,20 +337,15 @@ async function updateWorkOrder(id, body = {}) {
   return { affected, ok: true };
 }
 
-/* 작업지시 삭제 + 예약 환원 */
 async function deleteWorkOrders(ids = []) {
   const onlyNums = (Array.isArray(ids) ? ids : [])
     .map((v) => String(v).trim())
     .filter((v) => /^\d+$/.test(v));
-
   if (!onlyNums.length) return { affected: 0, ok: true };
 
-  // 1) 예약 환원
   for (const id of onlyNums) {
     await mapper.query("materials.reserveCancelByWo", [Number(id)]);
   }
-
-  // 2) 지시 삭제
   const csv = onlyNums.join(",");
   const res = await mapper.query("workorder.sp.delete", [csv]);
   const affected = Array.isArray(res?.[0])
@@ -373,9 +355,7 @@ async function deleteWorkOrders(ids = []) {
   return { affected, ok: true };
 }
 
-/* =========================
- * 공정 상태 조회/진행
- * ========================= */
+/* 공정 상태 조회/진행 */
 async function getExecState(woId) {
   const rows = await mapper.query("exec.getState", [Number(woId)]);
   return rows || [];
@@ -481,9 +461,7 @@ async function finishExec({ woId, process, addDone = 0 }) {
   };
 }
 
-/* =========================
- * 설비/작업자
- * ========================= */
+/* 설비/작업자 */
 async function getFacilitiesWithStatus({ process = "" } = {}) {
   const base = await mapper.query("facility.selectWithLatestStatus", [
     process,
@@ -521,18 +499,14 @@ async function getFacilitiesWithStatus({ process = "" } = {}) {
   return { rows, count: rows.length, ok: true };
 }
 
-/* =========================
- * 생산 작업자 조회
- * ========================= */
+/* 생산 작업자 */
 async function getProductionWorkers(dept = "생산") {
-  // 1차: 요청한 부서(기본 '생산')
   let rows = await mapper.query("production.selectWorkers.employees", [
     dept,
     dept,
     dept,
   ]);
 
-  // 그래도 0이면 2차: 완전 개방(부서필터 해제) 후 JS에서 '생산' 포함만 추리기
   if (!Array.isArray(rows) || rows.length === 0) {
     const any = await mapper.query("production.selectWorkers.employees", [
       "",
@@ -554,28 +528,22 @@ async function getProductionWorkers(dept = "생산") {
 }
 
 module.exports = {
-  // 제품/의뢰/계획
   getProducts,
   getRequests,
   savePlan,
   getPlans,
   updatePlan,
   deletePlans,
-  // 작업지시
   createWorkOrder,
   getWorkOrders,
   updateWorkOrder,
   deleteWorkOrders,
-  // BOM
   getBomForProduct,
-  // 자재 현황
   getMaterialStatus,
-  // 공정
   getExecState,
   startExec,
   pauseExec,
   finishExec,
-  // 설비/작업자
   getFacilitiesWithStatus,
   getProductionWorkers,
 };

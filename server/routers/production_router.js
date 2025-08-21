@@ -72,7 +72,7 @@ router.delete("/plans", async (req, res, next) => {
 router.post("/workorders", async (req, res, next) => {
   try {
     const result = await svc.createWorkOrder(req.body || {});
-    res.json(result); // ok true/false 그대로 전달
+    res.json(result);
   } catch (err) {
     next(err);
   }
