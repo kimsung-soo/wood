@@ -120,13 +120,13 @@ const orderCol = ref([
 const orderRow = ref([]);
 // 수량 값 검증
 const onCellValueChanged = (params) => {
-  if (params.colDef.field === 'qty') {
+  if (params.colDef.field === '주문수량') {
     const v = Number(String(params.newValue).toString().replaceAll(',', ''));
     if (!Number.isFinite(v) || v <= 0) {
-      params.data.qty = 1;
+      params.data.주문수량 = 1;
       params.api.applyTransaction({ update: [params.data] });
     } else {
-      params.data.qty = v;
+      params.data.주문수량 = v;
       params.api.applyTransaction({ update: [params.data] });
     }
   }
@@ -247,6 +247,7 @@ const submit = async () => {
     return;
   }
 
+  // 1) 헤더 저장 → REQ_ID 반환
   const condition = {
     CUS_ID: order.value.client_code,
     REQ_DATE: order.value.rDay,
@@ -254,15 +255,29 @@ const submit = async () => {
     WRITER: order.value.writer
   };
   const res = await axios.post('http://localhost:3000/reqInsert', condition);
-  console.log(res);
+  if (!res.data?.success) {
+    alert('주문서(헤더) 등록 실패');
+    return;
+  }
+  const reqId = res.data.reqId;
 
-  const payload = selectedRows.map((r) => ({
-    REQ_QTY: r.주문수량,
-    PRD_CODE: r.제품코드
-  }));
+  // 2) 상세 저장 (반환된 reqId 사용)
+  const payload = {
+    reqId,
+    rows: selectedRows.map((r) => ({
+      REQ_QTY: Number(r.주문수량),
+      PRD_CODE: r.제품코드
+    }))
+  };
   const res2 = await axios.post('http://localhost:3000/reqDetailInsert', payload);
-  console.log(res2);
-  alert('주문서 등록완료');
+  if (!res2.data?.success) {
+    alert('주문서(상세) 등록 실패');
+    return;
+  }
+  alert(`주문서 등록완료 (번호: ${reqId})`);
+  // 초기화
+  order.value = { dDay: '', rDay: '', writer: '', client: '', client_code: '' };
+  orderRow.value = [];
 };
 </script>
 

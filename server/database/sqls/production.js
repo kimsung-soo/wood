@@ -105,10 +105,16 @@ module.exports = {
     VALUES (?, ?, ?)
   `,
 
+  /* ✅ 계획-연동: 선택된 주문서 상태 업데이트 */
+  "orders.updateStatusByIdsCsv": `
+    UPDATE CUSTOMER_REQUEST
+    SET REQ_STATUS = ?
+    WHERE FIND_IN_SET(REQ_ID, ?)
+  `,
+
   /* =========================================================
    *                공정 실행/상태 관련
    * ========================================================= */
-
   "exec.initStatesForWo": `
     INSERT INTO work_order_process_state
       (wo_id, process_code, status, prod_qty, defect_qty, input_qty_total,
@@ -129,7 +135,6 @@ module.exports = {
     WHERE (? = '완제품') OR (t.code <> 'ASM')
     ON DUPLICATE KEY UPDATE wo_id = wo_id
   `,
-
   "exec.upsertState": `
     INSERT INTO work_order_process_state
       (wo_id, process_code, status, prod_qty, defect_qty, input_qty_total,
@@ -141,13 +146,11 @@ module.exports = {
       equip_ids  = VALUES(equip_ids),
       started_at = COALESCE(work_order_process_state.started_at, NOW())
   `,
-
   "exec.insertRun": `
     INSERT INTO work_order_exec
       (wo_id, process_code, input_qty, start_at, worker_id, equip_ids)
     VALUES (?, ?, ?, NOW(), ?, ?)
   `,
-
   "exec.pauseLatest": `
     SELECT ? AS _ignored;
     UPDATE work_order_exec e
@@ -160,7 +163,6 @@ module.exports = {
     ) t ON t.id = e.id
     SET e.end_at = NOW()
   `,
-
   "exec.finishLatest": `
     SELECT ? AS _ignored;
     UPDATE work_order_exec e
@@ -173,7 +175,6 @@ module.exports = {
     ) t ON t.id = e.id
     SET e.end_at = NOW()
   `,
-
   "exec.getState": `
     SELECT wo_id, process_code, status, prod_qty, defect_qty, input_qty_total,
            progress, started_at, ended_at, worker_id, equip_ids
@@ -193,7 +194,6 @@ module.exports = {
     WHERE id = ?
     LIMIT 1
   `,
-  /* ✅ target 0 방어 + 매 종료시각 갱신 */
   "exec.bumpStateOnFinish": `
     UPDATE work_order_process_state s
     SET
@@ -300,8 +300,6 @@ module.exports = {
   /* =========================
    * 자재 재고/예약
    * ========================= */
-
-  /* 타입별 재고(참고용) */
   "materials.selectStockByType": `
     SELECT M.MAT_CODE,
            M.MAT_NAME,
@@ -316,8 +314,6 @@ module.exports = {
     WHERE M.MAT_TYPE = ?
     GROUP BY M.MAT_CODE, M.MAT_NAME, M.MAT_TYPE, M.MAT_UNIT, M.MAT_SIZE, M.MAT_NOTE
   `,
-
-  /* ✅ BOM 자재코드 CSV로 가용재고(입고 - 활성예약) */
   "materials.selectAvailableByCodesCsv": `
     SELECT
       M.MAT_CODE AS matCode,
@@ -341,15 +337,11 @@ module.exports = {
     GROUP BY M.MAT_CODE, M.MAT_NAME, M.MAT_UNIT, M.MAT_SIZE, RES.reservedQty
     ORDER BY M.MAT_CODE
   `,
-
-  /* ✅ 예약 생성 */
   "materials.reserveInsert": `
     INSERT INTO production_mat_reserve
       (wo_id, product_code, mat_code, reserved_qty, status, created_at, note)
     VALUES (?, ?, ?, ?, 'ACTIVE', NOW(), ?)
   `,
-
-  /* ✅ 작업지시 기준 예약 취소(환원) */
   "materials.reserveCancelByWo": `
     UPDATE production_mat_reserve
     SET status = 'CANCELED', canceled_at = NOW()
@@ -367,15 +359,12 @@ module.exports = {
     COALESCE(e.EMAIL,'')           AS email
   FROM EMPLOYEES e
   WHERE
-    -- 부서 필터(정확히 일치 또는 포함)
     (
       COALESCE(?, '') = ''
       OR TRIM(e.DEPT_NAME) = TRIM(?)
       OR TRIM(e.DEPT_NAME) LIKE CONCAT('%', TRIM(?), '%')
     )
-    -- 재직자 판정: 퇴사일이 없거나(Null) 미래인 경우 허용
     AND (e.EMP_EDATE IS NULL OR e.EMP_EDATE > NOW())
-    -- 상태 컬럼명은 EMP_STATUS (✗ EMP_STATE 아님)
     AND (COALESCE(e.EMP_STATUS,'') IN ('', '재직', 'Y', 'y', 'YES', 'Yes', 'ACTIVE', 'Active', '1'))
   ORDER BY e.EMP_NO
 `,
