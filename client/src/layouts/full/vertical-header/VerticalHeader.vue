@@ -1,8 +1,20 @@
 <script setup lang="ts">
 import { useCustomizerStore } from '../../../stores/customizer';
 import { Menu2Icon } from 'vue-tabler-icons';
+import { useAuthStore } from '@/stores/auth';
+import { useRouter } from 'vue-router';
 
 const customizer = useCustomizerStore();
+const authStore = useAuthStore();
+const router = useRouter();
+
+function handleAuthButton() {
+  if (authStore.user) {
+    authStore.logout();
+  } else {
+    router.push('/login');
+  }
+}
 </script>
 
 <template>
@@ -24,10 +36,12 @@ const customizer = useCustomizerStore();
     <v-spacer />
 
     <div>
-      <span>누구누구님, 환영합니다! (로그인 했을 때에만 보이게 하기)</span>
+      <span v-if="authStore.user"> {{ authStore.user.name }}님, 환영합니다! </span>
+      <span v-else> 로그인이 필요합니다. </span>
     </div>
+
     <div>
-      <v-btn :to="'/login'">
+      <v-btn @click="handleAuthButton">
         <i class="fa-solid fa-right-from-bracket fa-2xl"></i>
       </v-btn>
     </div>

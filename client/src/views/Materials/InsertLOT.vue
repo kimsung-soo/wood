@@ -41,6 +41,10 @@ import { AgGridVue } from 'ag-grid-vue3';
 import { themeQuartz } from 'ag-grid-community';
 import MoDal from '../common/NewModal.vue';
 import axios from 'axios';
+import { useAuthStore } from '@/stores/auth';
+
+// 로그인한 세션의 정보들이 담김.
+const authStore = useAuthStore();
 
 const quartz = themeQuartz;
 
@@ -59,7 +63,7 @@ const colDefs = ref([
 ]);
 
 // ----------------- 폼 입력 필드 -----------------
-const manager = ref('');
+const manager = authStore.user?.name || '';
 
 // ----------------- 모달 (기본 정의) -----------------
 const modalRef = ref(null);
@@ -124,7 +128,7 @@ function onModalConfirm(selectedRows) {
 
 // ----------------- 리셋 / 제출 -----------------
 function resetForm() {
-  manager.value = '';
+  manager.value = authStore.user?.name || '';
   rowData.value = [];
 }
 
