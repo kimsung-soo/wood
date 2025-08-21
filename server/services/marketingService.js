@@ -74,14 +74,18 @@ const getNextLotNo = async () => {
 
 // 입고 - 등록
 const inboundInsert = async (rows) => {
+  const lot = await getNextLotNo();
+  const lotNo = lot[0]["generate_lot_number()"];
+  console.log("lot번호 :", lot);
   for (const row of rows) {
     console.log(row);
     const params = [
       row.RECEIVED_QTY,
-      row.RECEIVED_DATE,
       row.PRD_CERT_ID,
-      row.PRD_LOT,
       row.PRD_CODE,
+      row.PRD_TYPE,
+      row.PRD_NAME,
+      lotNo,
     ];
     await mariadb.query("inboundInsert", params);
   }
@@ -96,6 +100,60 @@ const inboundSearch = async (data) => {
   return result;
 };
 
+// 주문서 거래처 조회 모달
+
+const reqCusModal = async () => {
+  let list = await mariadb.query("reqCusModal");
+  return list;
+};
+
+// 주문서 등록 제품 조회 모달
+const reqPrdModal = async () => {
+  let list = await mariadb.query("reqPrdModal");
+  return list;
+};
+
+// 주문서 등록 (주문서테이블)
+const reqInsert = async (rows) => {
+  const params = [rows.CUS_ID, rows.REQ_DATE, rows.REQ_DDAY, rows.WRITER];
+  await mariadb.query("reqInsert", params);
+  return { success: true };
+};
+
+// 주문서등록 (상세테이블)
+const reqDetailInsert = async (rows) => {
+  const reqId = await mariadb.query("getNextPrd");
+  const ID = reqId[0]["GetNextREQ_ID()"];
+  for (const row of rows) {
+    console.log(row);
+    const params = [ID, row.REQ_QTY, row.PRD_CODE];
+    await mariadb.query("reqDetailInsert", params);
+  }
+  return { success: true };
+};
+// 주문서 조회
+const reqSelect = async () => {
+  let list = await mariadb.query("reqSelect");
+  return list;
+};
+
+// LOT 조회
+const lotSelect = async () => {
+  let list = await mariadb.query("lotSelect");
+  return list;
+};
+
+// 출하지시서 - 창고 조회
+const wrNameSelect = async () => {
+  let list = await mariadb.query("wrNameSelect");
+  return list;
+};
+
+// 출하이력  조회
+const shipSelect = async () => {
+  let list = await mariadb.query("shipSelect");
+  return list;
+};
 module.exports = {
   addAccount,
   inboundList,
@@ -107,4 +165,12 @@ module.exports = {
   getAccountList,
   getItemList,
   addOrder,
+  lotSelect,
+  wrNameSelect,
+  shipSelect,
+  reqCusModal,
+  reqPrdModal,
+  reqInsert,
+  reqDetailInsert,
+  reqSelect,
 };
