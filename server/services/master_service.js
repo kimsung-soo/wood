@@ -436,6 +436,22 @@ const wrSelect = async (data) => {
   let list = await mariadb.query("wrSelect", params);
   return list;
 };
+// 출하 - 조회
+const wrShip = async () => {
+  let list = await mariadb.query("wrShip");
+  return list;
+};
+
+// 출하 - 출하버튼
+const wrShipUpdate = async (rows) => {
+  for (const row of rows) {
+    console.log(row);
+    const params = [row.DELIVERY, row.CAR_NO, row.SHIP_NO];
+    await mariadb.query("wrShipUpdate", params);
+  }
+  return { success: true };
+};
+
 module.exports = {
   masterEmpSelect,
   masterEmpInsert,
@@ -486,4 +502,6 @@ module.exports = {
   masterPrcInsert,
   masterPrcModal,
   masterPrcSelect,
+  wrShip,
+  wrShipUpdate,
 };

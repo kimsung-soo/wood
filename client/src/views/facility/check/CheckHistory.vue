@@ -42,7 +42,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 const quartz = themeQuartz;
 
 import axios from 'axios';
-// const apiBase = 'http://localhost:3000';
+const apiBase = 'http://localhost:3000';
 
 // 컬럼 정의
 const columnDefs = ref([

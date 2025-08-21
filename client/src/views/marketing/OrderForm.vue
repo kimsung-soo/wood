@@ -1,22 +1,34 @@
 <template>
   <BaseBreadcrumb :title="page.title" :breadcrumbs="breadcrumbs" />
-  <UiParentCard>
+  <UiParentCard title="주문서 등록">
     <div class="main-container">
       <div class="list-container">
         <div class="add">
           <v-row class="mb-4">
             <v-col cols="6">
-              <v-text-field label="거래처명" v-model="order.client" outlined readonly @click="accModal" />
+              <v-text-field
+                label="거래처명"
+                v-model="order.client"
+                outlined
+                readonly
+                @click="accModal('거래처 조회', materialRowData, materialColDefs)"
+              />
             </v-col>
-
+            <MoDal ref="modalRef" :title="modalTitle" :rowData="modalRowData" :colDefs="modalColDefs" @confirm="modalConfirm" />
+            <v-col cols="6">
+              <v-text-field label="주문일자" v-model="order.rDay" type="date" outlined />
+            </v-col>
             <v-col cols="6">
               <v-text-field label="납기일자" v-model="order.dDay" type="date" :min="today" outlined />
+            </v-col>
+            <v-col cols="6">
+              <v-text-field label="작성자" v-model="order.writer" outlined />
             </v-col>
           </v-row>
         </div>
 
         <v-row justify="end">
-          <v-btn color="primary" class="mr-6" @click="itemModal">제품 추가</v-btn>
+          <v-btn color="warning" class="mr-6" @click="itemModal('제품 조회', itemRowData, itemColDefs)">제품 추가</v-btn>
         </v-row>
 
         <br /><br />
@@ -25,29 +37,28 @@
           :columnDefs="orderCol"
           :rowData="orderRow"
           :theme="quartz"
-          style="height: 500px; width: 100%"
+          style="height: 300px; width: 100%"
           @cell-value-changed="onCellValueChanged"
+          :rowSelection="rowSelection"
+          @rowClicked="onRowClicked"
+          @grid-ready="onGridReadyMat"
         />
         <br /><br />
 
         <v-row justify="end">
-          <v-col cols="12">
-            <v-text-field label="비고" v-model="order.reqNote" outlined />
-          </v-col>
           <v-btn color="error" class="mr-6" @click="reset">초기화</v-btn>
           <v-btn color="primary" class="mr-6" @click="submit">등록</v-btn>
         </v-row>
       </div>
     </div>
 
-    <MoDal ref="accModalRef" :title="accModalTitle" :rowData="accModalRowData" :colDefs="accModalColDefs" @confirm="accModalConfirm" />
     <MoDal ref="itemModalRef" :title="itemModalTitle" :rowData="itemModalRowData" :colDefs="itemModalColDefs" @confirm="itemModalConfirm" />
   </UiParentCard>
 </template>
 
 <script setup>
 // 모듈
-import { ref, shallowRef, watch } from 'vue';
+import { ref, shallowRef, watch, onMounted } from 'vue';
 import { themeQuartz } from 'ag-grid-community';
 import { AgGridVue } from 'ag-grid-vue3';
 import axios from 'axios';
@@ -56,7 +67,16 @@ import axios from 'axios';
 import MoDal from '../common/NewModal.vue';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
-
+const rowSelection = ref({
+  mode: 'multiRow'
+});
+const order = ref({
+  dDay: '',
+  rDay: '',
+  writer: '',
+  client: '',
+  client_code: ''
+});
 // 페이지 상단 Title, BreadCrumb, Theme
 const breadcrumbs = shallowRef([
   { title: '영업', disabled: true, href: '#' },
@@ -76,47 +96,25 @@ watch(selectedAccount, (val) => {
   order.value.client = val?.cusName ?? '';
 });
 
-const formatNumber = (v) => (v === null || v === undefined || v === '' ? '' : Number(v).toLocaleString());
-const parseNumber = (val) => {
-  if (val === null || val === undefined || val === '') return null;
-  const n = Number(String(val).replaceAll(',', ''));
-  return Number.isFinite(n) ? n : null;
+onMounted(() => {
+  modalList();
+  modalList2();
+});
+
+const gridApiMat = ref(null); // mat 그리드 API 저장용
+
+const onGridReadyMat = (params) => {
+  gridApiMat.value = params.api;
 };
-/**/
 
 /* 주문 등록 테이블 */
 const orderCol = ref([
-  {
-    headerName: '제품 코드 / 제품명',
-    flex: 1,
-    editable: false,
-    valueGetter: (p) => (p.data ? `${p.data.prdCode ?? ''} / ${p.data.prdName ?? ''}` : '')
-  },
-  {
-    field: 'qty',
-    headerName: '수량',
-    flex: 1,
-    editable: true,
-    valueFormatter: (p) => formatNumber(p.value),
-    valueParser: (p) => parseNumber(p.newValue),
-    cellStyle: { textAlign: 'right' }
-  },
-  { field: 'note', headerName: '비고', flex: 1, editable: true },
-  {
-    headerName: '삭제',
-    flex: 0.4,
-    editable: false,
-    cellRenderer: (p) => {
-      const btn = document.createElement('button');
-      btn.innerHTML = '🗑';
-      btn.className = 'ag-grid-del-btn';
-      btn.addEventListener('click', () => {
-        const idx = orderRow.value.findIndex((r) => r.__rowId === p.data.__rowId);
-        if (idx !== -1) orderRow.value.splice(idx, 1);
-      });
-      return btn;
-    }
-  }
+  { field: '제품코드', flex: 1 },
+  { field: '제품명', flex: 1 },
+  { field: '제품유형', flex: 1 },
+  { field: '규격', flex: 1 },
+  { field: '주문수량', flex: 1, editable: true, cellDataType: 'number' },
+  { field: '단위', flex: 1 }
 ]);
 
 const orderRow = ref([]);
@@ -136,47 +134,46 @@ const onCellValueChanged = (params) => {
 /**/
 
 /* 거래처 모달 */
-const accModalRef = ref(null);
-const accModalTitle = ref('');
-const accModalRowData = ref([]);
-const accModalColDefs = ref([]);
-
-const accColData = [
-  { field: 'cusId', headerName: '거래처 코드', flex: 1 },
-  { field: 'cusName', headerName: '거래처명', flex: 1 }
+const modalRef = ref(null);
+const modalTitle = ref('');
+const modalRowData = ref([]);
+const modalColDefs = ref([]);
+const materialColDefs = [
+  { field: '거래처코드', headerName: '거래처코드', flex: 1 },
+  { field: '거래처명', headerName: '거래처명', flex: 1 },
+  { field: '거래담당자', headerName: '거래담당자', flex: 1 }
 ];
 
-const accModal = async () => {
+const materialRowData = ref([]);
+
+const modalList = async () => {
   try {
-    const rowData = await getAccRowData();
-    openAccModal('거래처 조회', rowData, accColData);
+    const res = await axios.get('http://localhost:3000/reqCusModal');
+    materialRowData.value = res.data.map((prd) => ({
+      거래처코드: prd.CUS_ID,
+      거래처명: prd.CUS_NAME,
+      거래담당자: prd.CUS_MANAGER
+    }));
   } catch (e) {
     console.error(e);
-    alert('에러가 발생하였습니다.');
+    return;
   }
 };
 
-const getAccRowData = async () => {
-  try {
-    const { data } = await axios.get('/api/marketing/getacclist');
-    return data ?? [];
-  } catch (e) {
-    console.error(e);
-    return [];
+//모달 열때 데이터값 자식컴포넌트로
+const accModal = async (title, rowData, colDefs) => {
+  modalTitle.value = title;
+  modalRowData.value = rowData;
+  modalColDefs.value = colDefs;
+  if (modalRef.value) {
+    modalRef.value.open();
   }
 };
 
-const openAccModal = (title, rowData, colData) => {
-  accModalTitle.value = title;
-  accModalColDefs.value = colData;
-  accModalRowData.value = rowData;
-  if (accModalRef.value) {
-    accModalRef.value.open();
-  }
-};
-
-const accModalConfirm = (selectedRow) => {
-  selectedAccount.value = selectedRow;
+const modalConfirm = (selectedRow) => {
+  order.value.client = selectedRow.거래처명;
+  order.value.client_code = selectedRow.거래처코드;
+  console.log(order.value.client_code);
 };
 /**/
 
@@ -186,33 +183,32 @@ const itemModalTitle = ref('');
 const itemModalRowData = ref([]);
 const itemModalColDefs = ref([]);
 
-const itemColData = [
-  { field: 'prdCode', headerName: '제품 코드', flex: 1 },
-  { field: 'prdName', headerName: '제품명', flex: 1 }
+const itemColDefs = [
+  { field: '제품코드', headerName: '제품코드', flex: 1 },
+  { field: '제품명', headerName: '제품명', flex: 1 },
+  { field: '제품유형', headerName: '제품유형', flex: 1 },
+  { field: '규격', headerName: '규격', flex: 1 },
+  { field: '단위', headerName: '단위', flex: 1 }
 ];
+const itemRowData = ref([]);
 
-const itemModal = async () => {
+const modalList2 = async () => {
   try {
-    const rowData = await getItemRowData();
-    openItemModal('제품 조회', rowData, itemColData);
+    const res = await axios.get('http://localhost:3000/reqPrdModal');
+    itemRowData.value = res.data.map((prd) => ({
+      제품코드: prd.PRD_CODE,
+      제품명: prd.PRD_NAME,
+      제품유형: prd.PRD_TYPE,
+      규격: prd.PRD_SIZE,
+      단위: prd.PRD_UNIT
+    }));
   } catch (e) {
     console.error(e);
-    alert('에러가 발생하였습니다.');
+    return;
   }
 };
 
-const getItemRowData = async () => {
-  try {
-    const { data } = await axios.get('/api/marketing/getitemlist');
-    // 이미 선택된 상품 제외
-    return (data ?? []).filter((d) => !orderRow.value.some((r) => r.prdCode === d.prdCode));
-  } catch (e) {
-    console.error(e);
-    return [];
-  }
-};
-
-const openItemModal = (title, rowData, colData) => {
+const itemModal = async (title, rowData, colData) => {
   itemModalTitle.value = title;
   itemModalColDefs.value = colData;
   itemModalRowData.value = rowData;
@@ -222,73 +218,51 @@ const openItemModal = (title, rowData, colData) => {
 };
 
 const itemModalConfirm = (row) => {
-  orderRow.value.push({
-    __rowId: Math.random().toString(36).slice(2) + Date.now().toString(36),
-    prdCode: row.prdCode,
-    prdName: row.prdName,
-    qty: 1,
-    note: ''
-  });
-  selectedItem.value = row;
+  console.log(row);
+  orderRow.value.unshift(row);
 };
 /**/
 
-const order = ref({
-  client: '',
-  dDay: '',
-  reqNote: ''
-});
-
 const reset = () => {
-  order.value = { client: '', dDay: '', reqNote: '' };
+  order.value = { client: '', dDay: '', rDay: '' };
   orderRow.value = [];
   selectedAccount.value = null;
   selectedItem.value = null;
 };
 
+// 저장버튼
 const submit = async () => {
-  const odr = order.value;
-  const rows = orderRow.value;
-
-  if (!selectedAccount.value?.cusId) {
-    alert('거래처를 선택해주세요.');
+  if (!order.value.client || !order.value.dDay) {
+    alert('거래처와 납기일을 확인하세요');
     return;
   }
-  if (!odr.dDay) {
-    alert('납기일자를 입력해주세요.');
+  const selectedRows = gridApiMat.value.getSelectedRows();
+  if (selectedRows.length === 0) {
+    alert('등록할 제품을 선택하세요');
     return;
   }
-  if (rows.length === 0) {
-    alert('제품을 추가해주세요.');
-    return;
-  }
-
-  if (!confirm('등록하시겠습니까?')) {
+  const invalidQty = selectedRows.some((row) => !row.주문수량 || row.주문수량 <= 0);
+  if (invalidQty) {
+    alert('모든 제품의 수량을 입력해주세요');
     return;
   }
 
-  const payload = {
-    cusId: selectedAccount.value.cusId, // 거래처 코드
-    reqDDay: odr.dDay, // 납기일 (YYYY-MM-DD)
-    reqNote: odr.reqNote ?? '', // 비고
-    items: rows.map((r) => ({
-      prdId: r.prdCode, // 제품 코드
-      reqQty: Number(r.qty) || 0 // 주문 수량
-    }))
+  const condition = {
+    CUS_ID: order.value.client_code,
+    REQ_DATE: order.value.rDay,
+    REQ_DDAY: order.value.dDay,
+    WRITER: order.value.writer
   };
+  const res = await axios.post('http://localhost:3000/reqInsert', condition);
+  console.log(res);
 
-  try {
-    const { data } = await axios.post('/api/marketing/insertorder', payload);
-    if (data.affectedRows > 0) {
-      alert('등록되었습니다.');
-      reset();
-    } else {
-      alert('등록 실패');
-    }
-  } catch (e) {
-    console.error(e);
-    alert('등록 중 오류가 발생했습니다.');
-  }
+  const payload = selectedRows.map((r) => ({
+    REQ_QTY: r.주문수량,
+    PRD_CODE: r.제품코드
+  }));
+  const res2 = await axios.post('http://localhost:3000/reqDetailInsert', payload);
+  console.log(res2);
+  alert('주문서 등록완료');
 };
 </script>
 

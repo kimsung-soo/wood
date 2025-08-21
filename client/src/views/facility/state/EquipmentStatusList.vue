@@ -50,8 +50,9 @@ const apiBase = 'http://localhost:3000';
 const PROCESS_API = `${apiBase}/process`;
 
 let facTypeMap = new Map();
+
 const fetchFacTypeCodes = async () => {
-  const { data } = await axios.get(`${apiBase}/common/codes/FAC_TYPE`);
+  const { data } = await axios.get(`${apiBase}/common/codes/FC`);
   const map = new Map();
   for (const r of data || []) map.set(r.code ?? r.CODE, r.code_name ?? r.CODE_NAME);
   facTypeMap = map;
