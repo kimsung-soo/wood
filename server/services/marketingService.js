@@ -154,6 +154,18 @@ const shipSelect = async () => {
   let list = await mariadb.query("shipSelect");
   return list;
 };
+
+// 거래처 삭제
+async function deleteAccount(id) {
+  try {
+    const result = await mariadb.query("deleteAccount", [id]);
+    return result;
+  } catch (e) {
+    console.error(e);
+    return { error: e };
+  }
+};
+
 module.exports = {
   addAccount,
   inboundList,
@@ -173,4 +185,5 @@ module.exports = {
   reqInsert,
   reqDetailInsert,
   reqSelect,
+  deleteAccount,
 };

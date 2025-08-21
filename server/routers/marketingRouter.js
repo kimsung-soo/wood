@@ -103,4 +103,34 @@ router.get("/shipSelect", async (req, res) => {
   let list = await marketingService.shipSelect();
   res.send(list);
 });
+
+
+
+
+// 거래처 조회
+router.get("/marketing/getacclist", async (req, res) => {
+  try {
+    const result = await marketingService.getAccountList();
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.send({ error: error });
+  }
+});
+
+// 거래처 삭제
+router.delete("/marketing/deleteacc/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await marketingService.deleteAccount(id);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "DB error" });
+  }
+});
+
+
+
+
 module.exports = router;
