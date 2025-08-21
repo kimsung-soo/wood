@@ -51,7 +51,7 @@ const PROCESS_API = `${apiBase}/process`;
 // 설비유형 코드 라벨 맵
 let facTypeMap = new Map();
 const fetchFacTypeCodes = async () => {
-  const { data } = await axios.get(`${apiBase}/common/codes/FC`);
+  const { data } = await axios.get(`${apiBase}/common/codes/FAC_TYPE`);
   const map = new Map();
   for (const r of data || []) map.set(r.code ?? r.CODE, r.code_name ?? r.CODE_NAME);
   facTypeMap = map;

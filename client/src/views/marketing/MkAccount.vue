@@ -15,6 +15,11 @@
         </ag-grid-vue>
 
         <br /><br />
+        <!-- <div class="d-flex align-right mb-4">
+          <v-text-field label="검색" v-model="searchKeyword" hide-details class="mr-2" style="max-width: 280px"></v-text-field>
+          <v-btn color="darkText" @click="searchData">검색</v-btn>
+        </div> -->
+
         <v-row justify="end">
           <v-btn color="primary" class="mr-6" @click="submitForm">등록</v-btn>
         </v-row>
@@ -28,35 +33,55 @@
           @cell-value-changed="onCellValueChanged"
         >
         </ag-grid-vue>
-
-        <div class="d-flex align-right mb-4">
-          <v-text-field label="검색" v-model="searchKeyword" hide-details class="mr-2" style="max-width: 280px"></v-text-field>
-          <v-btn color="darkText" @click="searchData">검색</v-btn>
-        </div>
       </div>
       <MoDal ref="modalRef" :title="modalTitle" :rowData="modalRowData" :colDefs="modalColDefs" @confirm="modalConfirm" />
       <div class="d-flex align-right mb-4"></div>
     </div>
   </UiParentCard>
 
-  <p>{{ rowData1 }}</p>
+  <!-- <p>{{ rowData1 }}</p> -->
 </template>
 
 <script setup>
 // 기존 스크립트 내용은 동일합니다.
-import { ref, shallowRef } from 'vue';
+import { ref, shallowRef, onMounted, onBeforeUnmount, onActivated, onDeactivated } from 'vue';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import { themeQuartz } from 'ag-grid-community';
 import { AgGridVue } from 'ag-grid-vue3';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
+import { useProcessSimStore } from '@/stores/useProcessSimStore'; // 수정 가능 파일 아님: import만
+import { startSimTicker, stopSimTicker } from '@/sim/simTicker.js'; // simTicker.js는 건드리지 않음
 import axios from 'axios';
 // 모달 임포트
 import MoDal from '../common/NewModal.vue'; // 수정된 부분: 모달 컴포넌트 임포트
 const quartz = themeQuartz;
+const store = useProcessSimStore();
+
+// const toYn = (v) => (v === '여' || v === 'Y' || v === 1 || v === '1' || v === true ? 'Y' : 'N');
+// const toUseLabel = (v) => (v === 'Y' || v === 1 || v === '1' || v === true ? '사용' : '미사용');
+
+function tryStartSimTicker() {
+  // tick 없음 → 시작 안 함 (오류 예방)
+  if (typeof store.tick !== 'function') {
+    console.warn('[sim] store.tick() 없음 → ticker 미시작');
+    return;
+  }
+  if (typeof window !== 'undefined' && typeof requestAnimationFrame === 'function') {
+    startSimTicker();
+  }
+}
+
+onMounted(tryStartSimTicker);
+onActivated(tryStartSimTicker); // <KeepAlive> 대응
+onBeforeUnmount(() => stopSimTicker());
+onDeactivated(() => stopSimTicker());
 
 // const form = ref({ writer: '' }, { addDate: '' }, { bomVer: '' }, { bomCode: '' });
 const selectedRowIndex = ref(null);
-
+onMounted(() => {
+  // 초기 데이터 로드
+  loadPartners();
+});
 const submitForm = async () => {
   // console.log(rowData1.value[0].거래처코드);
 
@@ -94,6 +119,7 @@ const submitForm = async () => {
     const { data } = await axios.post('/api/marketing/insertacc', addAcc);
     // 영향받은 행이 0 보다 클 경우 성공
     if (data.affectedRows > 0) {
+      await loadPartners();
       alert('성공적으로 등록되었습니다.');
       // 성공적으로 등록시 값 초기화
       Object.keys(rowData1.value[0]).forEach((key) => {
@@ -149,35 +175,68 @@ const colDefs1 = ref([
 // const rowSelection = ref({
 //   mode: 'multiRow'
 // });
-const rowData2 = ref([
-  {
-    거래처코드: '불러오기',
-    거래처유형: '불러오기',
-    사업자등록번호: '불러오기',
-    거래처명: '불러오기',
-    담당자: '불러오기',
-    사용여부: '불러오기',
-    비고: '입력또는공란',
-    상세보기: '돋보기모달'
-  },
-  { 거래처코드: '', 거래처유형: '', 사업자등록번호: '', 거래처명: '', 담당자: '', 사용여부: '', 비고: '', 상세보기: '' },
-  { 거래처코드: '', 거래처유형: '', 사업자등록번호: '', 거래처명: '', 담당자: '', 사용여부: '', 비고: '', 상세보기: '' },
-  { 거래처코드: '', 거래처유형: '', 사업자등록번호: '', 거래처명: '', 담당자: '', 사용여부: '', 비고: '', 상세보기: '' },
-  { 거래처코드: '', 거래처유형: '', 사업자등록번호: '', 거래처명: '', 담당자: '', 사용여부: '', 비고: '', 상세보기: '' },
-  { 거래처코드: '', 거래처유형: '', 사업자등록번호: '', 거래처명: '', 담당자: '', 사용여부: '', 비고: '', 상세보기: '' },
-  { 거래처코드: '', 거래처유형: '', 사업자등록번호: '', 거래처명: '', 담당자: '', 사용여부: '', 비고: '', 상세보기: '' }
-]);
+
+const rowData2 = ref([]);
+const searchKeyword = ref('');
 
 const colDefs2 = ref([
-  { field: '거래처코드', flex: 1, editable: false },
-  { field: '거래처유형', flex: 1, editable: false },
-  // { field: '사업자등록번호', flex: 1, editable: false },
-  { field: '거래처명', flex: 1, editable: false },
-  { field: '담당자', flex: 1, editable: false },
-  { field: '사용여부', flex: 1, editable: false },
-  { field: '비고', flex: 1, editable: false },
-  { field: '상세보기', flex: 1, editable: false }
+  { headerName: '거래처코드', field: 'cusId', flex: 1 },
+  { headerName: '거래처유형', field: 'cusType', flex: 1 },
+  { headerName: '거래처명', field: 'cusName', flex: 1 },
+  { headerName: '담당자', field: 'cusManager', flex: 1 },
+  {
+    headerName: '사용여부',
+    field: 'cusUse',
+    flex: 1,
+    valueFormatter: (p) => (p.value === 'Y' || p.value === 1 || p.value === '1' ? '사용' : '미사용')
+  },
+  { headerName: '비고', field: 'cusNote', flex: 1 },
+  {
+    headerName: '삭제',
+    field: 'actions',
+    flex: 0.5,
+    cellRenderer: (params) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = '삭제';
+      btn.style.cursor = 'pointer';
+      btn.onclick = () => deletePartner(params.data.cusId);
+      return btn;
+    }
+  }
 ]);
+
+const deletePartner = async (cusId) => {
+  if (!confirm('정말 삭제하시겠습니까?')) return;
+
+  try {
+    const { data } = await axios.delete(`/api/marketing/deleteacc/${cusId}`);
+    console.log(data);
+    if (data.affectedRows > 0) {
+      alert('삭제되었습니다.');
+      await loadPartners(); // 목록 새로고침
+    } else {
+      alert('삭제 실패');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('삭제 중 오류가 발생했습니다.');
+  }
+};
+
+// ========== 데이터 매핑 & 로딩 ==========
+
+async function loadPartners(params = {}) {
+  const { q = null } = params;
+  const { data } = await axios.get('/api/marketing/getacclist', {
+    params: { q, _ts: Date.now() } // 캐시 방지
+  });
+  rowData2.value = Array.isArray(data) ? data : [];
+  console.log('거래처 목록:', rowData2.value);
+}
+onMounted(() => loadPartners());
+
+//---------------------------------------
 
 const page = ref({ title: '거래처등록 및 조회' });
 const breadcrumbs = shallowRef([

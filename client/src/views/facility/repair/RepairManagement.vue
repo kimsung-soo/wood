@@ -30,7 +30,8 @@
 
     <MoDal ref="modalRef" :title="modalTitle" :rowData="modalRowData" :colDefs="modalColDefs" @confirm="modalConfirm" />
 
-    <!-- 상세 폼 -->
+
+
     <v-card v-if="form.code" class="mt-6 pa-4">
       <v-row dense>
         <v-col cols="12" md="6">
@@ -56,17 +57,17 @@
 
 <script setup>
 import { ref, reactive, shallowRef, onMounted, watch } from 'vue';
-import axios from 'axios';
-import dayjs from 'dayjs';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
 import MoDal from '@/views/common/NewModal.vue';
+
 import { AgGridVue } from 'ag-grid-vue3';
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community';
 
 // ag-grid 등록
 ModuleRegistry.registerModules([AllCommunityModule]);
 const quartz = themeQuartz;
+
 
 // API
 const apiBase = import.meta?.env?.VITE_API_BASE || '/api';
@@ -87,6 +88,7 @@ const preloadCodeMaps = async () => {
 };
 
 // 공정코드 필터
+
 const processCode = ref('');
 const gridApi = ref(null);
 const onGridReady = (e) => (gridApi.value = e.api);
@@ -97,6 +99,7 @@ const applyProcessFilter = (procCode) => {
   });
   gridApi.value.onFilterChanged();
 };
+
 
 const columnDefs = ref([
   { field: '공정코드', hide: true, filter: 'agTextColumnFilter' },
@@ -116,6 +119,7 @@ const columnDefs = ref([
 ]);
 const defaultColDef = { editable: false, sortable: true, resizable: true };
 
+
 // DB 조회
 const fetchFacilities = async () => (await axios.get(`${apiBase}/facility`)).data || [];
 const fetchStatusList = async () => (await axios.get(`${apiBase}/facility/status`)).data || [];
@@ -123,19 +127,18 @@ const fetchStatusList = async () => (await axios.get(`${apiBase}/facility/status
 // 그리드용 데이터 생성
 const rows = ref([]);
 const fmtDT = (v) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm:ss') : '-');
+
 const composeRows = (statusRows, facilities) => {
   const facMap = new Map(facilities.map((f) => [f.FAC_ID, f]));
   const openDowns = statusRows.filter((s) => Number(s.FS_STATUS) === 1 && (s.FS_REASON || '') === '고장');
 
   return openDowns.map((s) => {
     const f = facMap.get(s.FAC_ID) || {};
-    const facTypeLabel = f.FAC_TYPE ? fcMap.get(String(f.FAC_TYPE)) || f.FAC_TYPE : f.FAC_TYPE_NM || '-';
-    const rrLabel = s.FS_TYPE ? rrMap.get(String(s.FS_TYPE)) || s.FS_TYPE : '-';
-
     return {
       공정코드: f.PR_ID || '',
       설비코드: s.FAC_ID,
       설비명: s.FAC_NAME || f.FAC_NAME || '',
+
       설비유형: facTypeLabel,
       설비상태: '비가동',
       비가동사유: '고장',
@@ -151,6 +154,7 @@ const composeRows = (statusRows, facilities) => {
 const init = async () => {
   try {
     await preloadCodeMaps();
+
     const [facilities, statusRows] = await Promise.all([fetchFacilities(), fetchStatusList()]);
     rows.value = composeRows(statusRows, facilities);
     if (processCode.value) applyProcessFilter(processCode.value);
@@ -159,6 +163,7 @@ const init = async () => {
     rows.value = [];
   }
 };
+
 
 const form = reactive({
   code: '',
@@ -190,6 +195,7 @@ const onPick = (e) => {
   form._fsId = d._fsId || null;
 };
 
+//폼의 담당자 입력
 watch(
   () => form.manager,
   (val) => {
@@ -199,7 +205,9 @@ watch(
   }
 );
 
+
 // 수리 완료 처리
+
 const completeRepair = async () => {
   if (!form._fsId) return alert('선택된 비가동 건이 없습니다.');
   if (!form.note?.trim()) return alert('수리내역을 입력해 주세요.');
@@ -229,24 +237,33 @@ function now() {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
+function fmt(v) {
+  const d = new Date(v);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 
 // 공정 모달
+
 const modalRef = ref(null);
 const modalTitle = ref('');
 const modalRowData = ref([]);
 const modalColDefs = ref([
-  { field: '공정코드', flex: 1 },
-  { field: '공정명', flex: 1 },
-  { field: '설비유형', flex: 1 },
-  { field: '등록일자', flex: 1 },
-  { field: '작성자', flex: 1 },
-  { field: '비고', flex: 1 }
+  { field: '공정코드', headerName: '공정코드', flex: 1 },
+  { field: '공정명', headerName: '공정명', flex: 1 },
+  { field: '설비유형', headerName: '설비유형', flex: 1 },
+  { field: '등록일자', headerName: '등록일자', flex: 1 },
+  { field: '작성자', headerName: '작성자', flex: 1 },
+  { field: '비고', headerName: '비고', flex: 1 }
 ]);
 
 const mapProcess = (r) => ({
   공정코드: r.PR_ID ?? r.PRC_CODE ?? '',
   공정명: r.PRC_NAME ?? '',
+
   설비유형: r.FAC_TYPE ? fcMap.get(String(r.FAC_TYPE)) || r.FAC_TYPE : '-',
+
   등록일자: r.PRC_RDATE ? dayjs(r.PRC_RDATE).format('YYYY-MM-DD') : '',
   작성자: r.PRC_WRITER ?? '',
   비고: r.PRC_NOTE ?? ''

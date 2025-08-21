@@ -37,8 +37,10 @@ const facilityInsert = `
 // 설비 수정
 const facilityUpdate = `
   UPDATE FACILITY
+
      SET FAC_NAME = ?, FAC_TYPE = ?, FAC_USE = ?, FAC_COMPANY = ?,
          FAC_MDATE = ?, FAC_IDATE = ?, FAC_CHECKDAY = ?, PR_ID = ?, MANAGER = ?
+
    WHERE FAC_ID = ?
 `;
 
@@ -65,6 +67,7 @@ const codeByGroup = `
    ORDER BY COALESCE(sort_order, 9999), code_name
 `;
 
+
 // 설비상태
 const facilityStatusList = `
   SELECT f.FAC_ID, f.FAC_NAME, f.FAC_TYPE, f.FAC_USE, f.PR_ID, f.FAC_COMPANY, f.MANAGER,
@@ -85,6 +88,7 @@ const facilityStatusList = `
          AND m.FS_SEQ = t.FS_SEQ  
     ) s ON s.FAC_ID = f.FAC_ID
    ORDER BY f.FAC_ID
+
 `;
 
 // 설비 상태 신규 등록
@@ -95,7 +99,9 @@ const facilityStatusInsert = `
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
+
 // 설비 상태 업데이트(고장/점검 설정)
+
 const facilityStatusUpdateToDown = `
   UPDATE FACILITY_STATUS
      SET FS_STATUS = ?, FS_REASON = ?, FS_TYPE = ?,
@@ -113,6 +119,7 @@ const facilityStatusEndDowntime = `
 
 // 특정 설비 최신 상태 조회
 const facilityStatusCurrentByFac = `
+
   SELECT * FROM FACILITY_STATUS
    WHERE FAC_ID = ?
    ORDER BY FS_SEQ DESC
@@ -128,10 +135,12 @@ const facilityStatusFilter = `
      AND ( ? IS NULL OR s.DOWN_STARTDAY >= ? )
      AND ( ? IS NULL OR COALESCE(s.DOWN_ENDDAY, NOW()) < DATE_ADD(?, INTERVAL 1 DAY) )
    ORDER BY s.DOWN_STARTDAY DESC, s.FS_SEQ DESC
+
 `;
 
 // 수리 내역 전체 조회
 const facilityRepairList = `
+
   SELECT
     r.FR_ID, r.FS_ID, r.FAC_ID,
     r.FR_TYPE, r.FR_CONTENT, r.FR_NOTE,
@@ -140,10 +149,12 @@ const facilityRepairList = `
     r.MANAGER
   FROM FACILITY_REPAIR r
   ORDER BY r.FR_ID DESC
+
 `;
 
 // 설비별 수리 내역 조회
 const facilityRepairByFacId = `
+
   SELECT
     r.FR_ID, r.FS_ID, r.FAC_ID,
     r.FR_TYPE, r.FR_CONTENT, r.FR_NOTE,
@@ -155,6 +166,7 @@ const facilityRepairByFacId = `
   ORDER BY r.FR_ID DESC
 `;
 // 상태 기반 수리 내역 등록
+
 const facilityRepairInsertByFsId = `
   INSERT INTO FACILITY_REPAIR(
     FR_TYPE, FR_CONTENT, FR_NOTE, FR_STARTDAY, MANAGER, FS_ID, FAC_ID
@@ -175,6 +187,7 @@ const facilityRepairFinishByFsId = `
 
 // 진행중 점검 목록 조회
 const facilityOpenInspections = `
+
   SELECT s.FS_ID, s.FS_SEQ, s.FAC_ID, f.PR_ID, f.FAC_NAME, f.FAC_TYPE,
          s.FS_REASON, s.FS_TYPE, s.DOWN_STARTDAY, s.FS_CHECKDAY, s.FS_NEXTDAY,
          COALESCE(s.MANAGER, f.MANAGER) AS MANAGER
@@ -184,6 +197,7 @@ const facilityOpenInspections = `
      AND s.FS_STATUS = 1
      AND s.DOWN_ENDDAY IS NULL
    ORDER BY COALESCE(s.DOWN_STARTDAY, s.FS_CHECKDAY) DESC, s.FS_SEQ DESC
+
 `;
 
 // 점검 종료 처리
@@ -199,21 +213,27 @@ const facilityInspectionHistory = `
   SELECT
     s.FS_ID,
     s.FAC_ID,
+
     f.FAC_NAME,
     f.FAC_TYPE,
     cm_fc.code_name AS FAC_TYPE_NM,
     c.FC_STARTDAY AS INSPECT_START,   
     c.FC_ENDDAY   AS INSPECT_DONE,   
+
     c.FC_NEXTDAY  AS NEXT_INSPECT,
     c.FC_CONTENT  AS INSPECT_CONTENT,
     c.FC_SUIT     AS FIT,
     c.FC_SUIT_REASON AS NG_REASON,
+
     COALESCE(c.MANAGER, s.MANAGER, f.MANAGER) AS MANAGER
+
   FROM FACILITY_STATUS s
   JOIN FACILITY_CHECK  c ON c.FS_ID = s.FS_ID
   JOIN FACILITY        f ON f.FAC_ID = s.FAC_ID
   LEFT JOIN code_master cm_fc
+
          ON cm_fc.group_code='FC' AND cm_fc.code = f.FAC_TYPE
+
   WHERE s.FS_REASON = '점검'
     AND ( ? IS NULL OR s.FAC_ID = ? )
     AND ( ? IS NULL OR DATE(c.FC_ENDDAY) >= DATE(?) )

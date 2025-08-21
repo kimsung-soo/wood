@@ -1,6 +1,7 @@
 // services/facility_service.js
 const mariadb = require("../database/mapper.js");
 
+
 // ====================== 설비 ======================
 
 // 설비 목록 조회
@@ -22,10 +23,9 @@ const getNextFacilityId = async () => {
 };
 
 // 설비 등록 (신규 ID 생성 후 INSERT)
+
 const facilityInsert = async (data) => {
-  const newId = await getNextFacilityId();
-  await mariadb.query("facilityInsert", [
-    newId,
+  const params = [
     data.FAC_NAME,
     data.FAC_TYPE,
     data.FAC_USE ?? 1,
@@ -33,8 +33,39 @@ const facilityInsert = async (data) => {
     data.FAC_MDATE ?? null,
     data.FAC_IDATE ?? null,
     data.FAC_CHECKDAY ?? null,
-    data.PR_ID ?? null,
+
+    data.FAC_TYPE,
+    data.FAC_TYPE,
+    data.FAC_TYPE,
+
     data.MANAGER ?? null,
+  ];
+  return await mariadb.query("facilityInsert", params);
+};
+
+// 다음 설비코드
+const getNextFacilityId = async () => {
+  return await mariadb.query("nextFacilityId");
+};
+
+// 설비 수정
+const facilityUpdate = async (data) => {
+  const params = [
+    data.FAC_NAME,
+    data.FAC_TYPE,
+    data.FAC_USE,
+    data.FAC_COMPANY,
+    data.FAC_MDATE ?? null,
+    data.FAC_IDATE ?? null,
+    data.FAC_CHECKDAY ?? null,
+
+    // PR_ID 재결정 후보
+    data.FAC_TYPE,
+    data.FAC_TYPE,
+    data.FAC_TYPE,
+
+    data.MANAGER ?? null,
+
   ]);
   return newId;
 };
@@ -100,15 +131,77 @@ const facilityStatusInsert = async (data) => {
   const FS_ID = genFsId();
   await mariadb.query("facilityStatusInsert", [
     FS_ID,
+
     data.FAC_ID,
-    data.FS_STATUS ?? 1,
+  ];
+  return await mariadb.query("facilityUpdate", params);
+};
+
+// 설비 삭제
+const facilityDelete = async ({ FAC_ID }) => {
+  return await mariadb.query("facilityDelete", [FAC_ID]);
+};
+
+// 공통코드
+const getCodesByGroup = async (group) => {
+  return await mariadb.query("codeByGroup", [group]);
+};
+
+// 공정 목록
+const processList = async () => {
+  return await mariadb.query("processList");
+};
+
+// 공정 설비타입 목록
+const processFacTypes = async () => {
+  return await mariadb.query("processFacTypes");
+};
+
+// 설비타입별 설비 목록
+const facilitySelectByFacType = async (facType) => {
+  return await mariadb.query("facilitySelectByFacType", [facType, facType]);
+};
+
+// 설비별 최신 상태 목록
+const facilityStatusList = async () => {
+  return await mariadb.query("facilityStatusList");
+};
+
+// 특정 설비 최신 상태
+const facilityStatusCurrentByFac = async (facId) => {
+  return await mariadb.query("facilityStatusCurrentByFac", [facId]);
+};
+
+// // 상태 신규
+// const facilityStatusInsert = async (data) => {
+//   const fsId = `FS${Date.now()}`;
+//   const params = [
+//     fsId,
+//     data.FAC_ID,
+//     data.FS_STATUS ?? 1,
+//     data.FS_REASON ?? null,
+//     data.FS_TYPE ?? null,
+//     data.DOWN_STARTDAY ?? null,
+//     null, // DOWN_ENDDAY 초기값
+//     data.FS_CHECKDAY ?? null,
+//     data.FS_NEXTDAY ?? null,
+//     data.MANAGER ?? null,
+//   ];
+//   await mariadb.query("facilityStatusInsert", params);
+//   return fsId;
+// };
+
+// 비가동
+const facilityStatusUpdateToDown = async (data) => {
+  const params = [
+    data.FS_STATUS,
     data.FS_REASON ?? null,
     data.FS_TYPE ?? null,
     data.DOWN_STARTDAY ?? null,
-    data.DOWN_ENDDAY ?? null,
     data.FS_CHECKDAY ?? null,
     data.FS_NEXTDAY ?? null,
     data.MANAGER ?? null,
+
   ]);
   return FS_ID;
 };
@@ -129,15 +222,15 @@ const facilityStatusUpdateToDown = async (d) => {
 };
 
 // 상태 종료(비가동 종료 + 필요 시 수리 생성/종료)
+
 const facilityStatusEndDowntime = async ({
   FS_ID,
   endTime,
   restoreStatus = 0,
   checkTime = null,
   MANAGER = null,
-  repairContent = null,
-  repairNote = null,
 }) => {
+
   // 상태 종료
   await mariadb.query("facilityStatusEndDowntime", [
     endTime,
@@ -165,6 +258,7 @@ const facilityStatusEndDowntime = async ({
   await mariadb.query("facilityRepairFinishByFsId", [endTime, FS_ID]);
 
   return true;
+
 };
 
 // 상태 이력 조회(필터)
@@ -173,6 +267,7 @@ const facilityStatusFilter = async ({
   startDate = null,
   endDate = null,
 }) => {
+
   const list = await mariadb.query("facilityStatusFilter", [
     facId,
     facId,
@@ -207,6 +302,7 @@ const facilityOpenInspections = async () => {
 };
 
 // 점검 결과 등록
+
 const facilityCheckInsert = async ({
   FS_ID,
   FAC_ID,
@@ -216,7 +312,9 @@ const facilityCheckInsert = async ({
   FC_CONTENT,
   MANAGER,
 }) => {
+
   const result = await mariadb.query("facilityCheckInsert", [
+
     FC_NEXTDAY ?? null,
     FC_SUIT ?? null,
     FC_SUIT_REASON ?? null,
@@ -224,6 +322,7 @@ const facilityCheckInsert = async ({
     MANAGER ?? null,
     FS_ID,
     FAC_ID,
+
     FS_ID,
   ]);
   return result;
@@ -231,6 +330,8 @@ const facilityCheckInsert = async ({
 
 // 점검 종료 처리(상태/다음 점검일 등 반영)
 
+
+// 점검 종료
 const facilityStatusEndInspection = async ({
   FS_ID,
   endTime,
@@ -239,6 +340,7 @@ const facilityStatusEndInspection = async ({
   nextCheck = null,
   MANAGER = null,
 }) => {
+
   const now = endTime ?? new Date();
 
   // 1) STATUS 종료
@@ -250,6 +352,7 @@ const facilityStatusEndInspection = async ({
     MANAGER ?? null,
     FS_ID,
   ]);
+
 
   // 2) CHECK 종료시간 업데이트
   await mariadb.query("facilityCheckFinishByFsId", [now, FS_ID]);
@@ -263,6 +366,7 @@ const facilityInspectionHistory = async ({
   startDate = null,
   endDate = null,
 }) => {
+
   const list = await mariadb.query("facilityInspectionHistory", [
     facId,
     facId,
@@ -290,13 +394,19 @@ const getProcessList = async () => {
 
 module.exports = {
   // 설비
+
   facilitySelect,
   facilityById,
-  getNextFacilityId,
   facilityInsert,
+  getNextFacilityId,
   facilityUpdate,
   facilityDelete,
+  // 공통/공정
+  getCodesByGroup,
+  processList,
+  processFacTypes,
   facilitySelectByFacType,
+
 
   // 상태
   facilityStatusList,
@@ -310,13 +420,16 @@ module.exports = {
   facilityRepairList,
   facilityRepairByFacId,
 
+
   // 점검
   facilityOpenInspections,
   facilityCheckInsert,
   facilityStatusEndInspection,
   facilityInspectionHistory,
 
+
   // 코드/공정
   getCodesByGroup,
   getProcessList,
+
 };

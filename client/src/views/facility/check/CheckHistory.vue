@@ -44,7 +44,7 @@ const quartz = themeQuartz;
 
 // API
 import axios from 'axios';
-const apiBase = 'http://localhost:3000';
+// const apiBase = 'http://localhost:3000';
 
 const columnDefs = ref([
   { field: '설비코드', flex: 1 },

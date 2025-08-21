@@ -15,6 +15,7 @@
       </v-col>
     </v-row>
 
+    <!-- AG Grid -->
     <ag-grid-vue
       class="ag-theme-quartz grid-clean"
       style="height: 420px"
@@ -32,7 +33,6 @@
 
 <script setup>
 import { ref, shallowRef, computed, onMounted } from 'vue';
-import axios from 'axios';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
 import UiParentCard from '@/components/shared/UiParentCard.vue';
 import { AgGridVue } from 'ag-grid-vue3';
@@ -41,6 +41,7 @@ import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-communi
 // ag-grid 등록
 ModuleRegistry.registerModules([AllCommunityModule]);
 const quartz = themeQuartz;
+
 
 // API base
 const apiBase = 'http://localhost:3000';
@@ -59,6 +60,7 @@ const columnDefs = ref([
 ]);
 const defaultColDef = { editable: false, sortable: true, resizable: true, suppressMenu: true };
 
+
 // 검색 키워드
 const productKeyword = ref('');
 const rawItems = ref([]);
@@ -71,6 +73,7 @@ function fmt(dt) {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
+
 
 // 코드 라벨 매핑
 let fcMap = new Map();
@@ -121,6 +124,7 @@ const loadRepairs = async () => {
         비고: r.FR_NOTE ?? ''
       };
     });
+
   } catch (e) {
     console.error('loadRepairs error', e);
     rawItems.value = [];
@@ -129,6 +133,7 @@ const loadRepairs = async () => {
 onMounted(loadRepairs);
 
 // 검색 필터
+
 const filteredItems = computed(() => {
   const kw = (productKeyword.value || '').trim().toLowerCase();
   if (!kw) return rawItems.value;

@@ -66,6 +66,7 @@
 
 <script setup>
 import { ref, reactive, shallowRef, onMounted } from 'vue';
+
 import axios from 'axios';
 import dayjs from 'dayjs';
 import BaseBreadcrumb from '@/components/shared/BaseBreadcrumb.vue';
@@ -83,6 +84,7 @@ const breadcrumbs = shallowRef([
   { title: '설비', disabled: true, href: '#' },
   { title: '점검 관리', disabled: false, href: '#' }
 ]);
+
 
 // API 경로
 const apiBase = import.meta?.env?.VITE_API_BASE || '/api';
@@ -103,6 +105,8 @@ const onGridReady = (e) => {
   gridApi.value = e.api;
   init();
 };
+
+
 const applyProcessFilter = (procCode) => {
   if (!gridApi.value) return;
   gridApi.value.setFilterModel({
@@ -111,16 +115,19 @@ const applyProcessFilter = (procCode) => {
   gridApi.value.onFilterChanged();
 };
 
+
 // 컬럼 정의
+
 const columnDefs = ref([
-  { field: '공정코드', hide: true, filter: 'agTextColumnFilter' },
   { field: '설비코드', flex: 1 },
   { field: '설비명', flex: 1 },
   { field: '설비유형', flex: 1 },
   {
     field: '설비상태',
     flex: 1,
+
     cellStyle: (p) => (p.value === '점검' ? { color: 'red', fontWeight: 'bold' } : { color: 'blue', fontWeight: 'bold' })
+
   },
   { field: '비가동사유', flex: 1 },
   { field: '비가동시작시간', flex: 1 },
@@ -130,11 +137,14 @@ const columnDefs = ref([
 ]);
 const defaultColDef = { editable: false, sortable: true, resizable: true };
 
+
 // 데이터 조회
 const fetchFacilities = async () => (await axios.get(`${apiBase}/facility`)).data || [];
 const fetchStatusList = async () => (await axios.get(`${apiBase}/facility/status`)).data || [];
 
+
 const rows = ref([]);
+
 const fmtDT = (v) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm:ss') : '-');
 
 // 점검대상
@@ -175,6 +185,7 @@ const init = async () => {
   }
 };
 
+
 const form = reactive({
   code: '',
   name: '',
@@ -205,7 +216,9 @@ const onPick = (e) => {
   });
 };
 
+
 // 점검완료 처리
+
 const completeInspection = async () => {
   if (!form._fsId) return alert('설비를 먼저 선택하세요.');
   if (!form.fit) return alert('적합 여부를 선택하세요.');
@@ -225,11 +238,13 @@ const completeInspection = async () => {
       manager: form.manager || null
     });
 
+
     await init();
+
+
     gridApi.value?.refreshCells({ force: true });
     alert('점검이 완료되었습니다.');
-
-    // 폼 초기화
+    // 선택 폼 초기화
     Object.assign(form, {
       code: '',
       name: '',
@@ -249,12 +264,15 @@ const completeInspection = async () => {
   }
 };
 
+
 // 유틸: 현재시각
+
 function now() {
   return dayjs().format('YYYY-MM-DD HH:mm:ss');
 }
 
 // 공정 목록 모달
+
 const modalRef = ref(null);
 const modalTitle = ref('');
 const modalRowData = ref([]);
@@ -271,8 +289,10 @@ const modalColDefs = ref([
 const mapProcess = (r) => ({
   공정코드: r.PR_ID ?? r.PRC_CODE ?? '',
   공정명: r.PRC_NAME ?? '',
+
   설비유형: r.FAC_TYPE ? fcMap.get(String(r.FAC_TYPE)) || r.FAC_TYPE : '-',
   등록일자: r.PRC_RDATE ? dayjs(r.PRC_RDATE).format('YYYY-MM-DD') : '',
+
   작성자: r.PRC_WRITER ?? '',
   비고: r.PRC_NOTE ?? ''
 });
