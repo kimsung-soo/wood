@@ -13,6 +13,29 @@ export const PROCESS_LIST = [
 export const EQ = { AVAILABLE: 'AVAILABLE', IN_USE: 'IN_USE', MAINT: 'MAINT' };
 const API = import.meta?.env?.VITE_API_URL || 'http://localhost:3000';
 
+const ROUTES = {
+  start: '/workexec/start',
+  finish: '/workexec/finish',
+  orders: '/workorders',
+  orderState: (id) => `/workexec/state/${id}`,
+  workers: '/api/workers/production'
+};
+
+async function safeGet(url, cfg) {
+  try {
+    return await axios.get(url, cfg);
+  } catch {
+    return { data: null };
+  }
+}
+async function safePost(url, body) {
+  try {
+    return await axios.post(url, body);
+  } catch (e) {
+    return { data: { ok: false, msg: e?.response?.data?.msg || e.message } };
+  }
+}
+
 /* ---------- helpers ---------- */
 function requiredCodes(productType) {
   return PROCESS_LIST.filter((p) => !(productType === '반제품' && p.code === 'ASM')).map((p) => p.code);
@@ -26,23 +49,6 @@ function producedOverall(order) {
   const list = codes.map((c) => order.processes[c]?.prodQty ?? 0);
   return Math.max(0, Math.min(order.targetQty, Math.min(...list)));
 }
-
-async function safeGet(url, cfg) {
-  try {
-    return await axios.get(url, cfg);
-  } catch {
-    return { data: null };
-  }
-}
-async function safePost(url, body) {
-  try {
-    return await axios.post(url, body);
-  } catch {
-    return { data: null };
-  }
-}
-
-/* ---------- seeds (orders only, fallback) ---------- */
 function procInitFor(productType) {
   const obj = {};
   PROCESS_LIST.forEach((pr) => {
@@ -96,18 +102,17 @@ function seedDemoOrders() {
   ];
 }
 
-/* ---------- store ---------- */
 export const useProcessSimStore = defineStore('process-sim', () => {
   const orders = reactive([]);
   const workers = reactive([]);
   const equipments = reactive([]);
 
-  /* -------- 작업자 로드 (EMPLOYEES 생산부/재직) -------- */
+  /* -------- 작업자 로드 -------- */
   async function loadWorkers() {
     workers.splice(0, workers.length);
-    const res = await safeGet(`${API}/api/workers/production`);
-    const rows = res?.data?.rows || [];
-    rows.forEach((r) =>
+    // ✅ 부서 파라미터 ‘생산’로 전달
+    const res = await safeGet(`${API}${ROUTES.workers}`, { params: { dept: '생산' } });
+    (res?.data?.rows || []).forEach((r) =>
       workers.push({
         id: r.id,
         name: r.name,
@@ -122,13 +127,13 @@ export const useProcessSimStore = defineStore('process-sim', () => {
   /* -------- 지시/상태 로드 -------- */
   async function loadOrders({ page = 1, size = 100 } = {}) {
     orders.splice(0, orders.length);
-    const res = await safeGet(`${API}/workorders`, { params: { kw: '', page, size } });
+    const res = await safeGet(`${API}${ROUTES.orders}`, { params: { kw: '', page, size } });
     const rows = res?.data?.rows;
 
     if (Array.isArray(rows) && rows.length) {
       for (const r of rows) {
         const item = {
-          id: r.id,
+          id: Number(r.id),
           issueNumber: r.issueNumber,
           productCode: r.productCode,
           productName: r.productName,
@@ -138,14 +143,14 @@ export const useProcessSimStore = defineStore('process-sim', () => {
           processes: procInitFor(r.productType || '완제품')
         };
 
-        const st = await safeGet(`${API}/workexec/state/${r.id}`).then((x) => x.data?.rows || []);
+        const st = await safeGet(`${API}${ROUTES.orderState(r.id)}`).then((x) => x.data?.rows || []);
         st.forEach((row) => {
           const p = item.processes[row.process_code];
           if (!p) return;
           p.status = row.status || p.status;
-          p.progress = Number(row.progress || p.progress);
-          p.prodQty = Number(row.prod_qty || p.prodQty);
-          p.defectQty = Number(row.defect_qty || p.defectQty || 0);
+          p.progress = Number(row.progress ?? p.progress);
+          p.prodQty = Number(row.prod_qty ?? p.prodQty);
+          p.defectQty = Number(row.defect_qty ?? p.defectQty ?? 0);
           p.startedAt = row.started_at || null;
           p.endedAt = row.ended_at || null;
           p.worker = row.worker_id || null;
@@ -160,94 +165,93 @@ export const useProcessSimStore = defineStore('process-sim', () => {
     }
   }
 
-  /* -------- 설비 상태 변경 도우미 -------- */
+  /* -------- 설비 상태 도우미 -------- */
   function setEquipStatus(ids = [], status) {
-    const set = new Set(ids);
+    const set = new Set((ids || []).map(String));
     equipments.forEach((e) => {
-      if (set.has(e.id)) e.status = status;
+      if (set.has(String(e.id))) e.status = status;
     });
   }
-  function _recalcProcProgress(order, process) {
-    const rt = order.processes[process];
-    const pct = Math.floor((rt.prodQty / Math.max(order.targetQty, 1)) * 100);
-    rt.progress = Math.max(0, Math.min(100, pct));
-    if (rt.progress >= 100) rt.status = 'DONE';
-  }
+
   function _recalcOrderProduced(order) {
     order.producedQty = producedOverall(order);
   }
 
   /* -------- 진행 제어 -------- */
-  async function startJob({ orderId, process, workerId, equipIds, inputQty }) {
-    const ord = orders.find((o) => o.id === orderId);
+  async function startJob(payload) {
+    // payload: { orderId, process, workerId, equipIds, inputQty, startAt }
+    const { orderId, process } = payload || {};
+    const ord = orders.find((o) => Number(o.id) === Number(orderId));
     if (!ord) return { ok: false, msg: '지시 없음' };
     const ps = ord.processes[process];
     if (!ps) return { ok: false, msg: '해당 공정이 지시에 없음' };
 
-    const resp = await safePost(`${API}/workexec/start`, { woId: orderId, process, workerId, equipIds, inputQty });
-    const server = resp?.data || {};
+    const body = {
+      woId: Number(payload.orderId),
+      process: payload.process,
+      workerId: payload.workerId,
+      equipIds: payload.equipIds,
+      inputQty: Number(payload.inputQty || 0),
+      startAt: payload.startAt
+    };
+
+    const resp = await safePost(`${API}${ROUTES.start}`, body);
+    const data = resp?.data || {};
+    if (data?.ok === false) return data;
 
     ps.status = 'RUN';
-    ps.worker = workerId;
-    ps.equipIds = (equipIds || []).slice();
-    ps.startedAt = server.startedAt || new Date().toISOString();
+    ps.worker = payload.workerId;
+    ps.equipIds = (payload.equipIds || []).slice();
+    ps.startedAt = data.startedAt || payload.startAt || new Date().toISOString();
     ps.endedAt = null;
     ps.inProgress = {
-      inputQty: Number(inputQty || 0),
+      inputQty: Number(payload.inputQty || 0),
       doneQty: 0,
       startAt: ps.startedAt,
       endAt: null,
-      workerId,
+      workerId: payload.workerId,
       equipIds: ps.equipIds.slice()
     };
     setEquipStatus(ps.equipIds, EQ.IN_USE);
-    return { ok: true, startedAt: server.startedAt || null };
+    return { ok: true, startedAt: data.startedAt || null };
   }
 
-  async function finishJob(orderId, process) {
-    const ord = orders.find((o) => o.id === orderId);
+  async function finishJob(payload) {
+    // payload: { orderId, process, workerId, equipIds, startAt, endAt, inputQty }
+    const { orderId, process } = payload || {};
+    const ord = orders.find((o) => Number(o.id) === Number(orderId));
     if (!ord) return { ok: false, msg: '지시 없음' };
     const ps = ord.processes[process];
     if (!ps) return { ok: false, msg: '해당 공정이 지시에 없음' };
 
-    let batchInput = 0;
-    if (ps.inProgress) {
-      const input = Number(ps.inProgress.inputQty || 0);
-      const done = Number(ps.inProgress.doneQty || 0);
-      batchInput = Math.max(input - done, 0);
-      ps.inProgress.endAt = new Date().toISOString();
-      ps.inProgress = null;
-    }
+    // ★ 서버는 addDone(이번 종료 증가량)을 요구함
+    const body = {
+      woId: Number(payload.orderId),
+      process: payload.process,
+      addDone: Number(payload.inputQty || 0)
+    };
 
-    // 0~3% 불량 시뮬레이션 (알림은 화면에서만)
-    let goodToAdd = 0;
-    let defects = 0;
-    if (batchInput > 0) {
-      const rate = Math.floor(Math.random() * 4) / 100; // 0,1,2,3%
-      defects = Math.min(batchInput, Math.round(batchInput * rate)); // ← 재선언 금지(가려짐 버그 수정)
-      ps.defectQty = Math.max(0, (ps.defectQty || 0) + defects);
-      goodToAdd = Math.max(0, batchInput - defects);
-    }
+    const resp = await safePost(`${API}${ROUTES.finish}`, body);
+    const data = resp?.data || {};
+    if (data?.ok === false) return data;
 
-    const resp = await safePost(`${API}/workexec/finish`, { woId: orderId, process, addDone: goodToAdd });
-    const server = resp?.data || {};
+    // 서버 응답 기준으로 동기화
+    if (typeof data.prodQty === 'number') ps.prodQty = data.prodQty;
+    if (typeof data.progress === 'number') ps.progress = data.progress;
+    if (data.endedAt) ps.endedAt = data.endedAt;
 
-    if (goodToAdd > 0) {
-      const canAdd = Math.max(ord.targetQty - ps.prodQty, 0);
-      ps.prodQty += Math.min(goodToAdd, canAdd);
-    }
-
-    _recalcProcProgress(ord, process);
-    _recalcOrderProduced(ord);
     ps.status = ps.progress >= 100 ? 'DONE' : 'IDLE';
-    ps.endedAt = server.endedAt || new Date().toISOString();
+    ps.inProgress = null;
     setEquipStatus(ps.equipIds, EQ.AVAILABLE);
+
+    _recalcOrderProduced(ord);
 
     return {
       ok: true,
-      defects,
-      endedAt: server.endedAt || null,
-      allDone: !!server.allDone
+      endedAt: data.endedAt || null,
+      prodQty: ps.prodQty,
+      progress: ps.progress,
+      allDone: !!data.allDone
     };
   }
 

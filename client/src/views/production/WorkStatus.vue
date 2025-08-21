@@ -81,7 +81,7 @@ const breadcrumbs = [
 /* 공정 탭 정의 */
 const processTabs = [
   { code: 'ALL', label: '전체' },
-  { code: 'CUT', label: '절단' },
+  { code: 'CUT', label: '재단' },
   { code: 'FAB', label: '가공' },
   { code: 'POL', label: '연마' },
   { code: 'PAI', label: '도장' },

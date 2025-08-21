@@ -16,7 +16,7 @@
           @rowClicked="onRowClicked"
           style="height: 300px; width: 100%"
           :pagination="true"
-          :pagination-page-size="5"
+          :pagination-page-size="10"
         ></ag-grid-vue>
       </v-card-text>
 

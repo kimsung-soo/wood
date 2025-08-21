@@ -216,19 +216,32 @@ const updateTMP = `UPDATE MAT_IN_TMP
 SET TMP_STATUS = ?
 WHERE RECEIPT_NO = ?`;
 
-// 재고 조회
-const stockSelect = `SELECT M.MAT_CODE,
-       M.MAT_NAME,
-       M.MAT_TYPE,
-       M.MAT_UNIT,
-       M.MAT_SIZE,
-       M.MAT_NOTE,
-       IFNULL(SUM(MR.MAT_QTY),0) AS MAT_QTY
-FROM MATERIALS AS M
-LEFT JOIN MATERIAL_RECEIPT AS MR
-  ON M.MAT_CODE = MR.MAT_CODE
+// 재고 조회 (현재 재고만 반환, 소수점 제거) //0820 이동섭 작업
+const stockSelect = `
+SELECT 
+  M.MAT_CODE,
+  M.MAT_NAME,
+  M.MAT_TYPE,
+  M.MAT_UNIT,
+  M.MAT_SIZE,
+  M.MAT_NOTE,
+  ROUND( IFNULL(SUM(R.MAT_QTY),0) - IFNULL(RES.reservedQty,0), 0 ) AS MAT_QTY
+FROM MATERIALS M
+LEFT JOIN MATERIAL_RECEIPT R
+  ON M.MAT_CODE = R.MAT_CODE
+LEFT JOIN (
+  SELECT mat_code, SUM(reserved_qty) AS reservedQty
+  FROM production_mat_reserve
+  WHERE status = 'ACTIVE'
+  GROUP BY mat_code
+) RES
+  ON RES.mat_code = M.MAT_CODE
 WHERE M.MAT_TYPE = ?
-GROUP BY M.MAT_CODE, M.MAT_NAME, M.MAT_TYPE, M.MAT_UNIT, M.MAT_SIZE;`;
+GROUP BY 
+  M.MAT_CODE, M.MAT_NAME, M.MAT_TYPE, M.MAT_UNIT, M.MAT_SIZE, M.MAT_NOTE
+ORDER BY M.MAT_CODE;
+`;
+//
 
 // 입출고 조회
 const stockStatus = `SELECT 
