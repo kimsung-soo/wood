@@ -122,10 +122,10 @@ const breadcrumbs = shallowRef([
 ]);
 
 const form = ref({
+  prdType: '',
   chkedDate: '',
   certId: '',
-  prdName: '',
-  prdType: ''
+  prdName: ''
 });
 
 // db연결
@@ -137,19 +137,17 @@ const getPrdList = async () => {
     if (result.data.length > 0) {
       // DB 필드명을 Vue 컴포넌트에서 사용하는 필드명으로 매핑
       rowData.value = result.data.map((item) => ({
-        certId: item.PRD_CERT_ID || item.certId,
-        prdCode: item.PRD_CODE || item.prdCode,
-        prdName: item.PRD_NAME || item.prdName,
-        chkedDate: item.Q_CHECKED_DATE || item.chkedDate,
-        prdType: item.PRD_TYPE || item.prdType
+        certId: item.PRD_CERT_ID,
+        prdCode: item.PRD_CODE,
+        prdName: item.PRD_NAME,
+        chkedDate: item.Q_CHECKED_DATE.substring(0, 10),
+        prdType: item.PRD_TYPE
       }));
     }
   } catch (err) {
     console.error('데이터 로딩 실패:', err.message);
   }
 };
-
-console.log(getPrdList());
 
 onBeforeMount(() => {
   getPrdList();
@@ -164,13 +162,7 @@ const colDefs = ref([
   { headerName: '제품유형', field: 'prdType' }
 ]);
 
-const rowData = ref([
-  { certId: 'QC100', prdCode: 'DSK100', prdName: '흰색학생책상', chkedDate: '2025-08-12', prdType: '완제품' },
-  { certId: 'QC101', prdCode: 'DSK101', prdName: '검은색학생책상', chkedDate: '2025-08-12', prdType: '완제품' },
-  { certId: 'QC102', prdCode: 'DSK102', prdName: '파란색학생책상', chkedDate: '2025-08-12', prdType: '반제품' },
-  { certId: 'QC103', prdCode: 'DSK103', prdName: '노란색학생책상', chkedDate: '2025-08-12', prdType: '반제품' },
-  { certId: 'QC104', prdCode: 'DSK104', prdName: '분홍색학생책상', chkedDate: '2025-08-12', prdType: '완제품' }
-]);
+const rowData = ref([]);
 
 // 검색활성화
 const gridData = computed(() => {
@@ -202,21 +194,25 @@ const onRowClicked = (event) => {
   const rowData = event.data;
   console.log('클릭된 행:', rowData);
 
-  // /qm/qrdpass 경로로 이동하면서 데이터 전달
+  // /qm/prdlstdtl 경로로 이동하면서 데이터 전달
   router.push({
     path: '/qm/prdlstdtl',
     query: {
-      prdCode: rowData.certId
+      certId: rowData.PRD_CERT_ID,
+      prdCode: rowData.PRD_CODE,
+      prdName: rowData.PRD_NAME,
+      chkedDate: rowData.Q_CHECKED_DATE,
+      prdType: rowData.PRD_TYPE
     }
   });
+};
 
-  // 초기화 버튼
-  function resetForm() {
-    const r = form.value;
-    r.chkedDate = '';
-    r.certId = '';
-    r.prdName = '';
-    r.prdType = '';
-  }
+// 초기화 버튼
+const resetForm = () => {
+  const r = form.value;
+  r.chkedDate = '';
+  r.certId = '';
+  r.prdName = '';
+  r.prdType = '';
 };
 </script>
